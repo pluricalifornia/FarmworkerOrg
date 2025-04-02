@@ -266,6 +266,18 @@
       "El Centro": [-115.5310, 32.7920]
     };
     
+    // Load geocode cache from localStorage
+    let storedGeoCache = {};
+    try {
+      const cachedCoordinates = localStorage.getItem('farmworkerMapGeoCache');
+      if (cachedCoordinates) {
+        storedGeoCache = JSON.parse(cachedCoordinates);
+        debugLog(`Loaded ${Object.keys(storedGeoCache).length} cached coordinates from localStorage`);
+      }
+    } catch (e) {
+      debugLog("Error loading cached coordinates: " + e.message);
+    }
+    
     // Fallback data if CSV load fails
     const mockOrganizations = [
       {
@@ -362,11 +374,72 @@
       "esri/widgets/BasemapToggle",
       "esri/widgets/Home",
       "esri/geometry/Extent",
-      "esri/request"
-    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest) => {
+      "esri/request",
+      "esri/tasks/Locator" // Add Locator to the require
+    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest, Locator) => {
       debugLog("ArcGIS modules loaded successfully");
       
       try {
+        // Create a locator instance for geocoding
+        const locator = new Locator({
+          url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer"
+        });
+        
+        // Create geocode cache by combining hardcoded and stored coordinates
+        const geocodeCache = {...cityCoordinates, ...storedGeoCache};
+        
+        // Function to save geocode cache to localStorage
+        function saveGeocodeCache() {
+          try {
+            localStorage.setItem('farmworkerMapGeoCache', JSON.stringify(geocodeCache));
+            debugLog(`Saved ${Object.keys(geocodeCache).length} coordinates to localStorage`);
+          } catch (e) {
+            debugLog(`Error saving coordinates cache: ${e.message}`);
+          }
+        }
+        
+        // Function to geocode a city
+        async function geocodeCity(cityName, state = "CA") {
+          // Check cache first
+          if (geocodeCache[cityName]) {
+            debugLog(`Using cached coordinates for ${cityName}`);
+            return geocodeCache[cityName];
+          }
+          
+          debugLog(`Geocoding city: ${cityName}, ${state}`);
+          
+          try {
+            const results = await locator.addressToLocations({
+              address: {
+                "city": cityName,
+                "region": state,
+                "countryCode": "USA"
+              },
+              outFields: ["*"],
+              maxLocations: 1
+            });
+            
+            if (results.length > 0) {
+              const coords = [results[0].location.longitude, results[0].location.latitude];
+              debugLog(`Successfully geocoded ${cityName}: [${coords}]`);
+              
+              // Save to cache
+              geocodeCache[cityName] = coords;
+              
+              // Save updated cache to localStorage
+              saveGeocodeCache();
+              
+              return coords;
+            } else {
+              debugLog(`No geocoding results for: ${cityName}, ${state}`);
+              return null;
+            }
+          } catch (error) {
+            debugLog(`Geocoding error for ${cityName}: ${error.message}`);
+            return null;
+          }
+        }
+        
         // Create map with basemap
         const map = new ArcGISMap({
           basemap: "topo-vector"
@@ -484,10 +557,10 @@
                 updateInfoPanel(city);
                 
                 // Zoom to city
-                if (cityCoordinates[city]) {
+                if (geocodeCache[city]) {
                   const point = new Point({
-                    longitude: cityCoordinates[city][0],
-                    latitude: cityCoordinates[city][1]
+                    longitude: geocodeCache[city][0],
+                    latitude: geocodeCache[city][1]
                   });
                   view.goTo({
                     target: point,
@@ -525,8 +598,8 @@
           });
         }
         
-        // Process organizations data
-        function processOrganizations() {
+        // Modified processOrganizations function using geocoding
+        async function processOrganizations() {
           // Group organizations by city
           cityGroups = {};
           let totalRevenue = 0;
@@ -572,13 +645,29 @@
           debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
           debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
           
-          // Create markers for each city
-          Object.keys(cityGroups).forEach(city => {
+          // Create markers for each city (modified to use geocoding)
+          const cities = Object.keys(cityGroups);
+          
+          // Process cities with a delay to avoid rate limiting
+          for (let i = 0; i < cities.length; i++) {
+            const city = cities[i];
             const cityInfo = cityGroups[city];
             
-            // Check if we have coordinates for this city
-            if (cityCoordinates[city]) {
-              const [longitude, latitude] = cityCoordinates[city];
+            // Get coordinates (from cache or geocoding)
+            let coordinates;
+            
+            if (geocodeCache[city]) {
+              coordinates = geocodeCache[city];
+            } else {
+              coordinates = await geocodeCity(city);
+              // Add small delay between geocoding requests
+              if (i < cities.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
+            }
+            
+            if (coordinates) {
+              const [longitude, latitude] = coordinates;
               
               // Create point
               const point = new Point({
@@ -614,15 +703,18 @@
               // Add to graphics layer
               graphicsLayer.add(graphic);
             } else {
-              debugLog(`No coordinates found for city: ${city}`);
+              debugLog(`Could not get coordinates for city: ${city}`);
             }
-          });
+          }
+          
+          // Save the complete geocode cache
+          saveGeocodeCache();
           
           // Update info panel
           updateInfoPanel();
         }
         
-        // Function to load and process CSV data
+        // Function to load and process CSV data - updated for async
         function loadData() {
           debugLog("Attempting to load CSV data...");
           
@@ -640,7 +732,9 @@
             if (fileIndex >= filesToTry.length) {
               debugLog("All file attempts failed. Using mock data.");
               organizations = mockOrganizations;
-              processOrganizations();
+              processOrganizations().catch(error => {
+                debugLog(`Error processing organizations: ${error.message}`);
+              });
               return;
             }
             
@@ -659,7 +753,9 @@
                 complete: function(results) {
                   organizations = results.data;
                   debugLog(`Parsed ${organizations.length} organizations from CSV`);
-                  processOrganizations();
+                  processOrganizations().catch(error => {
+                    debugLog(`Error processing organizations: ${error.message}`);
+                  });
                 },
                 error: function(error) {
                   debugLog(`Error parsing CSV: ${error}`);
