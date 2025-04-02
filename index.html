@@ -5,9 +5,6 @@
   <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>California Farmworker Organizations Map</title>
   
-  <!-- Load Calcite Design System -->
-  <script type="module" src="https://js.arcgis.com/calcite-components/3.0.3/calcite.esm.js"></script>
-  
   <!-- Load the ArcGIS Maps SDK for JavaScript core API -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css"/>
   <script src="https://js.arcgis.com/4.32/"></script>
@@ -308,54 +305,6 @@
         "City": "Sacramento",
         "State": "CA",
         "Total revenues": "$13,876,543"
-      },
-      {
-        "Name": "UFW Foundation",
-        "EIN": "47-5566451",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Tehachapi",
-        "State": "CA",
-        "Total revenues": "$5,876,432"
-      },
-      {
-        "Name": "California Farmworker Foundation",
-        "EIN": "83-0593856",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Delano",
-        "State": "CA",
-        "Total revenues": "$1,376,390"
-      },
-      {
-        "Name": "UFW Pension Fund",
-        "EIN": "95-6433144",
-        "IRS 501(c) type": "501(c)(9)",
-        "City": "Bakersfield",
-        "State": "CA",
-        "Total revenues": "$6,543,987"
-      },
-      {
-        "Name": "UFW Health Plan",
-        "EIN": "95-6070650",
-        "IRS 501(c) type": "501(c)(9)",
-        "City": "Bakersfield",
-        "State": "CA",
-        "Total revenues": "$7,654,321"
-      },
-      {
-        "Name": "UFW Juan de la Cruz Pension Fund",
-        "EIN": "95-6059774",
-        "IRS 501(c) type": "501(c)(9)",
-        "City": "Bakersfield",
-        "State": "CA",
-        "Total revenues": "$8,765,432"
-      },
-      {
-        "Name": "UFW Health & Welfare Trust",
-        "EIN": "94-6152408",
-        "IRS 501(c) type": "501(c)(9)",
-        "City": "Bakersfield",
-        "State": "CA",
-        "Total revenues": "$4,567,890"
       }
     ];
     
@@ -369,7 +318,7 @@
     
     // Initialize the map
     require([
-      "esri/Map",
+      "esri/Map", 
       "esri/views/MapView",
       "esri/Graphic",
       "esri/layers/GraphicsLayer",
@@ -379,10 +328,10 @@
       "esri/geometry/Extent",
       "esri/geometry/SpatialReference",
       "esri/request"
-    ], function(Map, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, SpatialReference, esriRequest) {
+    ], function(EsriMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, SpatialReference, esriRequest) {
       
-      // Create map with basemap
-      const map = new Map({
+      // Create map with basemap - use EsriMap instead of Map to avoid naming conflict
+      const map = new EsriMap({
         basemap: "topo-vector"
       });
       
