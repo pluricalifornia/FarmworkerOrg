@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css"/>
   <script src="https://js.arcgis.com/4.32/"></script>
   
-  <!-- Load map components -->
-  <script type="module" src="https://js.arcgis.com/map-components/4.32/arcgis-map-components.esm.js"></script>
+  <!-- Add Papa Parse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   
   <style>
     html, body {
@@ -52,6 +52,21 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       padding: 15px;
+    }
+    
+    #debugPanel {
+      position: absolute;
+      bottom: 30px;
+      right: 20px;
+      z-index: 99;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      padding: 15px;
+      max-width: 300px;
+      max-height: 200px;
+      overflow: auto;
+      font-size: 12px;
     }
     
     .legend-item {
@@ -213,9 +228,23 @@
     <p style="margin-bottom: 0; font-size: 0.8em;">* Size of marker indicates funding amount</p>
   </div>
   
+  <div id="debugPanel">
+    <h3 style="margin-top: 0; margin-bottom: 10px;">Debug Info</h3>
+    <div id="debugContent"></div>
+  </div>
+  
   <button id="resetViewBtn">Reset View</button>
 
   <script>
+    // Debug function to log information
+    function debugLog(message) {
+      const debugContent = document.getElementById("debugContent");
+      const logItem = document.createElement("div");
+      logItem.textContent = message;
+      debugContent.appendChild(logItem);
+      console.log(message);
+    }
+    
     // City coordinates lookup
     const cityCoordinates = {
       "Bakersfield": [-119.0187, 35.3733],
@@ -238,7 +267,7 @@
       "El Centro": [-115.5310, 32.7920]
     };
     
-    // Mock data - you would replace this with your actual data from the CSV
+    // Fallback data if CSV load fails
     const mockOrganizations = [
       {
         "Name": "California Rural Legal Assistance (CRLA)",
@@ -399,7 +428,7 @@
       // Function to parse revenue values
       function parseRevenue(revenueStr) {
         if (!revenueStr) return 0;
-        return parseInt(revenueStr.replace(/\$|,/g, '')) || 0;
+        return parseInt(revenueStr.toString().replace(/\$|,/g, '')) || 0;
       }
       
       // Function to format revenue for display
@@ -436,7 +465,7 @@
         content: [
           {
             type: "text",
-            text: "{count} organizations with total funding of {totalRevenue}"
+            text: "{count} organizations with total funding of {totalRevenueDisplay}"
           }
         ]
       };
@@ -544,21 +573,30 @@
         });
       }
       
-      // Function to load data and set up the map
-      function loadData() {
-        // In a real application, you would fetch CSV data here
-        // For this example, we'll use mock data
-        organizations = mockOrganizations;
-        
-        // Process organizations and group by city
+      // Process organizations data
+      function processOrganizations() {
+        // Group organizations by city
         cityGroups = {};
         let totalRevenue = 0;
+        let caOrgCount = 0;
+        
+        debugLog(`Processing ${organizations.length} organizations...`);
         
         organizations.forEach(org => {
-          if (org.City && org.State === 'CA') {
-            const city = org.City;
+          // Check if organization has valid data
+          if (!org || !org.City || !org.State) {
+            debugLog(`Skipping invalid organization: ${JSON.stringify(org)}`);
+            return;
+          }
+          
+          if (org.State === 'CA') {
+            const city = org.City.trim();
             const revenue = parseRevenue(org["Total revenues"]);
+            
+            caOrgCount++;
             totalRevenue += revenue;
+            
+            debugLog(`Processing org in ${city}: ${org.Name} - ${org["Total revenues"]}`);
             
             if (!cityGroups[city]) {
               cityGroups[city] = {
@@ -576,8 +614,11 @@
         });
         
         // Update statistics
-        document.getElementById("orgCount").textContent = organizations.filter(o => o.State === 'CA').length;
+        document.getElementById("orgCount").textContent = caOrgCount;
         document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
+        
+        debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
+        debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
         
         // Create markers for each city
         Object.keys(cityGroups).forEach(city => {
@@ -620,27 +661,113 @@
             
             // Add to graphics layer
             graphicsLayer.add(graphic);
+          } else {
+            debugLog(`No coordinates found for city: ${city}`);
           }
         });
         
         // Update info panel
         updateInfoPanel();
+      }
+      
+      // Function to load and process CSV data
+      function loadData() {
+        debugLog("Attempting to load CSV data...");
         
-        // Set up click handler for graphics
-        view.on("click", function(event) {
-          view.hitTest(event).then(function(response) {
-            const graphic = response.results.find(result => {
-              return result.graphic.layer === graphicsLayer;
-            });
-            
-            if (graphic) {
-              const city = graphic.graphic.attributes.city;
-              selectedCity = city;
-              updateInfoPanel(city);
+        // Try to load the CSV file with the correct filename
+        esriRequest("cleandata_farmworker-organizations.csv", {
+          responseType: "text"
+        }).then(function(response) {
+          debugLog("CSV file loaded successfully!");
+          
+          // Use Papa Parse for better CSV parsing
+          Papa.parse(response.data, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+              organizations = results.data;
+              debugLog(`Parsed ${organizations.length} organizations from CSV`);
+              processOrganizations();
+            },
+            error: function(error) {
+              debugLog(`Error parsing CSV: ${error}`);
+              debugLog("Falling back to mock data");
+              organizations = mockOrganizations;
+              processOrganizations();
             }
+          });
+        }).catch(function(error) {
+          debugLog(`Error loading CSV: ${error}`);
+          
+          // Try alternate path
+          debugLog("Trying alternate path ./cleandata_farmworker-organizations.csv");
+          esriRequest("./cleandata_farmworker-organizations.csv", {
+            responseType: "text"
+          }).then(function(response) {
+            debugLog("CSV file loaded from alternate path!");
+            
+            Papa.parse(response.data, {
+              header: true,
+              skipEmptyLines: true,
+              complete: function(results) {
+                organizations = results.data;
+                debugLog(`Parsed ${organizations.length} organizations from CSV`);
+                processOrganizations();
+              },
+              error: function(error) {
+                debugLog(`Error parsing CSV: ${error}`);
+                organizations = mockOrganizations;
+                processOrganizations();
+              }
+            });
+          }).catch(function(error) {
+            debugLog(`Error loading CSV from alternate path: ${error}`);
+            
+            // Try one more fallback without the hyphen
+            debugLog("Trying without hyphen: cleandata_farmworkerorganizations.csv");
+            esriRequest("cleandata_farmworkerorganizations.csv", {
+              responseType: "text"
+            }).then(function(response) {
+              debugLog("CSV file loaded without hyphen!");
+              
+              Papa.parse(response.data, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                  organizations = results.data;
+                  debugLog(`Parsed ${organizations.length} organizations from CSV`);
+                  processOrganizations();
+                },
+                error: function(error) {
+                  debugLog(`Error parsing CSV: ${error}`);
+                  organizations = mockOrganizations;
+                  processOrganizations();
+                }
+              });
+            }).catch(function(error) {
+              debugLog(`All CSV loading attempts failed: ${error}`);
+              debugLog("Falling back to mock data");
+              organizations = mockOrganizations;
+              processOrganizations();
+            });
           });
         });
       }
+      
+      // Set up click handler for graphics
+      view.on("click", function(event) {
+        view.hitTest(event).then(function(response) {
+          const graphic = response.results.find(result => {
+            return result.graphic.layer === graphicsLayer;
+          });
+          
+          if (graphic) {
+            const city = graphic.graphic.attributes.city;
+            selectedCity = city;
+            updateInfoPanel(city);
+          }
+        });
+      });
       
       // Handle filter buttons
       document.getElementById("filterAll").addEventListener("click", function() {
@@ -687,26 +814,11 @@
         updateInfoPanel();
       });
       
-      // Initialize the application
+      // Initialize the application when view is ready
       view.when(function() {
+        debugLog("Map view initialized, loading data...");
         loadData();
       });
-      
-      // In a real application, you would have code to load the CSV file here
-      // For example:
-      /*
-      esriRequest("cleandata_farmworkerorganizations.csv", {
-        responseType: "text"
-      }).then(function(response) {
-        // Parse CSV data here
-        // Use a CSV parsing library or custom function
-        // Then process the data as in the loadData function
-      }).catch(function(error) {
-        console.error("Error loading CSV:", error);
-        // Fallback to mock data
-        loadData();
-      });
-      */
     });
   </script>
 </body>
