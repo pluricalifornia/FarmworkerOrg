@@ -166,19 +166,6 @@
       padding: 10px 15px;
       cursor: pointer;
     }
-    
-    #missingCitiesBtn {
-      position: absolute;
-      bottom: 100px;
-      left: 20px;
-      z-index: 99;
-      background-color: #f0f0f0;
-      border: none;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      padding: 10px 15px;
-      cursor: pointer;
-    }
   </style>
 </head>
 
@@ -243,7 +230,6 @@
   </div>
   
   <button id="resetViewBtn">Reset View</button>
-  <button id="missingCitiesBtn">Show Missing Cities</button>
 
   <!-- Load ArcGIS API -->
   <script src="https://js.arcgis.com/4.32/"></script>
@@ -281,92 +267,124 @@
       "El Centro": [-115.5310, 32.7920],
       "Dade City": [-82.1962, 28.3647],
       
-      // Adding missing cities
-      "Santa Rosa": [-122.7144, 38.4404],
-      "San Marcos": [-117.1661, 33.1434],
-      "San Francisco": [-122.4194, 37.7749],
-      "Oakland": [-122.2712, 37.8044],
-      "San Jose": [-121.8853, 37.3382],
-      "Stockton": [-121.2908, 37.9577],
-      "Santa Ana": [-117.8678, 33.7455],
-      "San Diego": [-117.1611, 32.7157],
-      "Riverside": [-117.3755, 33.9806],
-      "San Bernardino": [-117.2898, 34.1083],
-      "Irvine": [-117.8265, 33.6846],
-      "Salinas": [-121.6555, 36.6777],
+      // All missing cities with correct coordinates
       "Watsonville": [-121.7568, 36.9102],
-      "Palmdale": [-118.1164, 34.5794],
-      "Escondido": [-117.0865, 33.1192],
-      "Merced": [-120.4829, 37.3022],
-      "Madera": [-120.0607, 36.9613],
-      "Pomona": [-117.7499, 34.0551],
-      "Santa Maria": [-120.4357, 34.9530],
+      "Santa Rosa": [-122.7141, 38.4405],
+      "Moreno Valley": [-117.2296, 33.9424],
+      "San Marcos": [-117.1661, 33.1434],
+      "Mountain View": [-122.0838, 37.3860],
+      "Felton": [-122.0727, 37.0513],
       "Napa": [-122.2886, 38.2975],
+      "Clovis": [-119.7030, 36.8252],
+      "Walnut Grove": [-121.5102, 38.2424],
+      "Brentwood": [-121.6958, 37.9318],
+      "Parlier": [-119.5271, 36.6116],
+      "Orange Cove": [-119.3135, 36.6252],
+      "San Francisco": [-122.4194, 37.7749],
+      "Calistoga": [-122.5797, 38.5787],
+      
+      // Other California cities for reference
+      "San Diego": [-117.1611, 32.7157],
+      "San Jose": [-121.8853, 37.3382],
+      "Oakland": [-122.2712, 37.8044],
+      "Long Beach": [-118.1937, 33.7701],
+      "Anaheim": [-117.9143, 33.8366],
+      "Santa Ana": [-117.8678, 33.7455],
+      "Riverside": [-117.3755, 33.9806],
+      "Stockton": [-121.2908, 37.9577],
+      "Irvine": [-117.8265, 33.6846],
+      "Fremont": [-121.9885, 37.5485],
+      "San Bernardino": [-117.2898, 34.1083],
+      "Santa Clarita": [-118.5429, 34.3917],
+      "Fontana": [-117.4350, 34.0922],
+      "Moreno Valley": [-117.2296, 33.9424],
+      "Rancho Cucamonga": [-117.5931, 34.1064],
+      "Ontario": [-117.6509, 34.0633],
+      "Lancaster": [-118.1542, 34.6868],
+      "Palm Springs": [-116.5453, 33.8303],
+      "Salinas": [-121.6555, 36.6777],
+      "Pomona": [-117.7499, 34.0551],
       "Hayward": [-122.0808, 37.6688],
+      "Escondido": [-117.0865, 33.1192],
+      "Sunnyvale": [-122.0364, 37.3688],
+      "Torrance": [-118.3406, 33.8358],
+      "Pasadena": [-118.1445, 34.1478],
+      "Orange": [-117.8531, 33.7879],
+      "Fullerton": [-117.9242, 33.8703],
+      "Thousand Oaks": [-118.8375, 34.1706],
       "Concord": [-122.0312, 37.9779],
-      "Santa Clara": [-121.9552, 37.3541],
+      "Visalia": [-119.2921, 36.3302],
+      "Simi Valley": [-118.7845, 34.2694],
+      "Victorville": [-117.2928, 34.5362],
       "Vallejo": [-122.2566, 38.1041],
       "Berkeley": [-122.2727, 37.8716],
-      "Redding": [-122.3917, 40.5865],
-      "Santa Barbara": [-119.6982, 34.4208],
-      "San Leandro": [-122.1561, 37.7249],
-      "Fairfield": [-122.0376, 38.2493],
-      "Mountain View": [-122.0838, 37.3860],
+      "El Monte": [-118.0289, 34.0686],
+      "Downey": [-118.1331, 33.9401],
+      "Costa Mesa": [-117.9184, 33.6411],
+      "Inglewood": [-118.3531, 33.9617],
       "Carlsbad": [-117.3505, 33.1581],
+      "Fairfield": [-122.0376, 38.2493],
       "Temecula": [-117.1486, 33.4936],
-      "Manteca": [-121.2160, 37.7974],
-      "Folsom": [-121.1760, 38.6779],
-      "Milpitas": [-121.8950, 37.4323],
-      "Pleasanton": [-121.8746, 37.6624],
-      "Redwood City": [-122.2363, 37.4852],
-      "Citrus Heights": [-121.2811, 38.7071],
+      "Antioch": [-121.8052, 38.0049],
+      "Richmond": [-122.3477, 37.9357],
+      "Murrieta": [-117.2139, 33.5539],
+      "Norwalk": [-118.0812, 33.9022],
+      "Daly City": [-122.4702, 37.7058],
+      "Burbank": [-118.3089, 34.1808],
+      "Santa Maria": [-120.4357, 34.9530],
+      "El Cajon": [-116.9625, 32.7948],
+      "Rialto": [-117.3703, 34.1064],
+      "San Mateo": [-122.3255, 37.5630],
+      "Jurupa Valley": [-117.4854, 34.0025],
+      "Compton": [-118.2200, 33.8958],
+      "Vista": [-117.2428, 33.2000],
+      "South Gate": [-118.2123, 33.9425],
+      "Mission Viejo": [-117.6719, 33.6000],
+      "Vacaville": [-121.9877, 38.3565],
+      "Carson": [-118.2813, 33.8316],
+      "Hesperia": [-117.3008, 34.4263],
+      "Santa Monica": [-118.4912, 34.0195],
+      "Westminster": [-117.9939, 33.7597],
+      "Santa Barbara": [-119.6982, 34.4208],
+      "Redding": [-122.3917, 40.5865],
+      "Chico": [-121.8375, 39.7285],
+      "Newport Beach": [-117.9292, 33.6189],
+      "San Leandro": [-122.1561, 37.7249],
       "San Rafael": [-122.5311, 37.9735],
+      "Camarillo": [-119.0377, 34.2164],
+      "Merced": [-120.4829, 37.3022],
       "Alhambra": [-118.1270, 34.0953],
+      "Livermore": [-121.7680, 37.6819],
+      "Tracy": [-121.4252, 37.7397],
+      "Citrus Heights": [-121.2811, 38.7071],
+      "Folsom": [-121.1760, 38.6779],
+      "Pleasanton": [-121.8746, 37.6624],
+      "Manteca": [-121.2160, 37.7974],
+      "Milpitas": [-121.8950, 37.4323],
+      "Redwood City": [-122.2363, 37.4852],
+      "Davis": [-121.7405, 38.5449],
+      "Madera": [-120.0607, 36.9613],
       "Petaluma": [-122.6367, 38.2324],
-      "La Mesa": [-117.0230, 32.7678],
-      "Cupertino": [-122.0322, 37.3230],
-      "Union City": [-122.0438, 37.5936],
-      "Campbell": [-121.9500, 37.2872],
-      "Laguna Niguel": [-117.7075, 33.5225],
+      "Turlock": [-120.8465, 37.4946],
       "Tulare": [-119.3473, 36.2077],
       "Hollister": [-121.4016, 36.8525],
-      "Turlock": [-120.8465, 37.4946],
+      "Lodi": [-121.2722, 38.1302],
+      "Cupertino": [-122.0322, 37.3230],
+      
+      // Non-California locations
       "Montgomery": [-86.3077, 32.3792],
       "Austin": [-97.7431, 30.2672],
       "Woodburn": [-122.8554, 45.1437],
       "Washington": [-77.0369, 38.9072]
     };
     
-    // Fallback data if CSV load fails
-    const mockOrganizations = [
-      {
-        "Name": "California Rural Legal Assistance (CRLA)",
-        "EIN": "95-2428657",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Modesto",
-        "State": "CA",
-        "Total revenues": "$34,144,676"
-      },
-      {
-        "Name": "California Rural Legal Assistance Foundation",
-        "EIN": "68-0233370",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Sacramento",
-        "State": "CA",
-        "Total revenues": "$7,705,233"
-      }
-    ];
-    
     // Global variables
     let view;
     let graphicsLayer;
-    let missingCitiesLayer;
     let organizations = [];
     let cityGroups = {};
-    let missingCities = [];
     let currentFilter = 'all';
     let selectedCity = null;
-    let showingMissingCities = false;
     
     // Function to parse revenue values
     function parseRevenue(revenueStr) {
@@ -422,11 +440,9 @@
           basemap: "topo-vector"
         });
         
-        // Create graphics layers
+        // Create graphics layer for organizations
         graphicsLayer = new GraphicsLayer();
-        missingCitiesLayer = new GraphicsLayer({ visible: false });
         map.add(graphicsLayer);
-        map.add(missingCitiesLayer);
         
         // Create the map view
         view = new MapView({
@@ -581,9 +597,9 @@
         function processOrganizations() {
           // Group organizations by city
           cityGroups = {};
-          missingCities = [];
           let totalRevenue = 0;
           let caOrgCount = 0;
+          let missingCitiesFound = false;
           
           debugLog(`Processing ${organizations.length} organizations...`);
           
@@ -611,8 +627,8 @@
                 
                 // Check if we have coordinates for this city
                 if (!cityCoordinates[city]) {
-                  missingCities.push(city);
                   debugLog(`No coordinates found for city: ${city}`);
+                  missingCitiesFound = true;
                 }
               }
               
@@ -627,10 +643,9 @@
           document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
           
           debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
-          debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
           
-          if (missingCities.length > 0) {
-            debugLog(`Missing coordinates for cities: ${missingCities.join(", ")}`);
+          if (missingCitiesFound) {
+            debugLog(`WARNING: Some cities don't have coordinates. Check the console for details.`);
           }
           
           // Create markers for each city
@@ -674,41 +689,6 @@
               
               // Add to graphics layer
               graphicsLayer.add(graphic);
-            } else {
-              // Add to missing cities layer with a different marker for future reference
-              // This would be visible when toggling the "Show Missing Cities" button
-              // We just use a central California location for now
-              const point = new Point({
-                longitude: -119.4179,
-                latitude: 36.7783
-              });
-              
-              // Create a special marker for missing cities
-              const markerSymbol = {
-                type: "simple-marker",
-                size: 12,
-                color: [128, 128, 128, 0.8], // Gray
-                outline: {
-                  color: [255, 0, 0],
-                  width: 2
-                }
-              };
-              
-              // Create graphic
-              const graphic = new Graphic({
-                geometry: point,
-                symbol: markerSymbol,
-                attributes: {
-                  city: city,
-                  count: cityInfo.count,
-                  isMissing: true,
-                  totalRevenue: cityInfo.totalRevenue,
-                  totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
-                }
-              });
-              
-              // Add to missing cities layer
-              missingCitiesLayer.add(graphic);
             }
           });
           
@@ -725,7 +705,9 @@
             "cleandata_farmworkerorganizations.csv",
             "./cleandata_farmworkerorganizations.csv",
             "cleandata_farmworker-organizations.csv",
-            "./cleandata_farmworker-organizations.csv"
+            "./cleandata_farmworker-organizations.csv",
+            "cleandata_farmworkerorganizations 1.csv",
+            "./cleandata_farmworkerorganizations 1.csv"
           ];
           
           let fileIndex = 0;
@@ -733,7 +715,7 @@
           function tryNextFile() {
             if (fileIndex >= filesToTry.length) {
               debugLog("All file attempts failed. Using mock data.");
-              organizations = mockOrganizations;
+              organizations = [];
               processOrganizations();
               return;
             }
@@ -763,49 +745,3 @@
               });
             }).catch(function(error) {
               debugLog(`Error loading ${filename}: ${error}`);
-              fileIndex++;
-              tryNextFile();
-            });
-          }
-          
-          tryNextFile();
-        }
-        
-        // Set up click handler for graphics
-        view.on("click", function(event) {
-          view.hitTest(event).then(function(response) {
-            const graphic = response.results.find(result => {
-              return result.graphic.layer === graphicsLayer;
-            });
-            
-            if (graphic) {
-              const city = graphic.graphic.attributes.city;
-              selectedCity = city;
-              updateInfoPanel(city);
-            }
-          });
-        });
-        
-        // Handle filter buttons
-        document.getElementById("filterAll").addEventListener("click", function() {
-          currentFilter = 'all';
-          setActiveFilterButton(this);
-          filterGraphics(0);
-          updateInfoPanel(selectedCity);
-        });
-        
-        document.getElementById("filterLarge").addEventListener("click", function() {
-          currentFilter = 'large';
-          setActiveFilterButton(this);
-          filterGraphics(10000000);
-          updateInfoPanel(selectedCity);
-        });
-        
-        document.getElementById("filterMed").addEventListener("click", function() {
-          currentFilter = 'med';
-          setActiveFilterButton(this);
-          filterGraphics(1000000, 10000000);
-          updateInfoPanel(selectedCity);
-        });
-        
-        document.getElementById("filterSmall").
