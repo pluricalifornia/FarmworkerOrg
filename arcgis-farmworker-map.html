@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>California Farmworker Organizations Map</title>
+  
+  <!-- Load Calcite Design System -->
+  <script type="module" src="https://js.arcgis.com/calcite-components/3.0.3/calcite.esm.js"></script>
+  
+  <!-- Load the ArcGIS Maps SDK for JavaScript core API -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css"/>
+  <script src="https://js.arcgis.com/4.32/"></script>
+  
+  <!-- Load map components -->
+  <script type="module" src="https://js.arcgis.com/map-components/4.32/arcgis-map-components.esm.js"></script>
+  
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: 'Avenir Next', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    
+    #viewDiv {
+      height: 100%;
+      width: 100%;
+    }
+    
+    #infoPanel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 99;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      width: 300px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding: 15px;
+    }
+    
+    #legendPanel {
+      position: absolute;
+      bottom: 30px;
+      left: 20px;
+      z-index: 99;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      padding: 15px;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    
+    .filter-btn {
+      margin: 5px 5px 5px 0;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+      cursor: pointer;
+    }
+    
+    .filter-btn.active {
+      background-color: #0079c1;
+      color: white;
+    }
+    
+    .org-item {
+      border-bottom: 1px solid #eee;
+      padding: 8px 0;
+    }
+    
+    .org-name {
+      font-weight: bold;
+      color: #0079c1;
+    }
+    
+    .title-bar {
+      background-color: #0079c1;
+      color: white;
+      padding: 10px 15px;
+      margin: -15px -15px 15px -15px;
+      border-radius: 8px 8px 0 0;
+    }
+    
+    .stats-container {
+      display: flex;
+      margin-bottom: 15px;
+    }
+    
+    .stat-box {
+      flex: 1;
+      text-align: center;
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+    
+    .stat-box:last-child {
+      margin-right: 0;
+    }
+    
+    .stat-value {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #0079c1;
+    }
+    
+    .stat-label {
+      font-size: 0.8em;
+      color: #666;
+    }
+    
+    .action-btn {
+      background-color: #0079c1;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-top: 10px;
+      width: 100%;
+      cursor: pointer;
+    }
+    
+    .action-btn:hover {
+      background-color: #005e95;
+    }
+
+    #resetViewBtn {
+      position: absolute;
+      bottom: 150px;
+      left: 20px;
+      z-index: 99;
+      background-color: white;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      padding: 10px 15px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="viewDiv"></div>
+  
+  <div id="infoPanel">
+    <div class="title-bar">
+      <h2 style="margin: 0; font-size: 1.2em;">California Farmworker Organizations</h2>
+    </div>
+    
+    <div class="stats-container">
+      <div class="stat-box">
+        <div class="stat-value" id="orgCount">0</div>
+        <div class="stat-label">Organizations</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="fundingTotal">$0</div>
+        <div class="stat-label">Total Funding</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+      <button id="filterAll" class="filter-btn active">All</button>
+      <button id="filterLarge" class="filter-btn">&gt; $10M</button>
+      <button id="filterMed" class="filter-btn">$1-10M</button>
+      <button id="filterSmall" class="filter-btn">&lt; $1M</button>
+    </div>
+    
+    <div id="selectedCity" style="margin-bottom: 15px; font-weight: bold;"></div>
+    <div id="orgsList" style="margin-top: 10px;"></div>
+  </div>
+  
+  <div id="legendPanel">
+    <h3 style="margin-top: 0; margin-bottom: 10px;">Funding Legend</h3>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(204, 0, 0);"></div>
+      <div>Over $20 Million</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(255, 0, 0);"></div>
+      <div>$10-20 Million</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(255, 153, 0);"></div>
+      <div>$5-10 Million</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(255, 204, 0);"></div>
+      <div>$1-5 Million</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(76, 175, 80);"></div>
+      <div>Under $1 Million</div>
+    </div>
+    <p style="margin-bottom: 0; font-size: 0.8em;">* Size of marker indicates funding amount</p>
+  </div>
+  
+  <button id="resetViewBtn">Reset View</button>
+
+  <script>
+    // City coordinates lookup
+    const cityCoordinates = {
+      "Bakersfield": [-119.0187, 35.3733],
+      "Fresno": [-119.7871, 36.7378],
+      "Sacramento": [-121.4944, 38.5816],
+      "Los Angeles": [-118.2437, 34.0522],
+      "Oxnard": [-119.1792, 34.1975],
+      "Modesto": [-120.9969, 37.6391],
+      "Delano": [-119.2471, 35.7688],
+      "Tehachapi": [-118.4489, 35.1322],
+      "Glendora": [-117.8651, 34.1361],
+      "Winton": [-120.6107, 37.3855],
+      "Keene": [-118.5573, 35.2271],
+      "Visalia": [-119.2921, 36.3302],
+      "Brawley": [-115.5311, 32.9787],
+      "Ventura": [-119.2290, 34.2746],
+      "Coachella": [-116.1733, 33.6803],
+      "Chico": [-121.8375, 39.7285],
+      "Indio": [-116.2023, 33.7206],
+      "El Centro": [-115.5310, 32.7920]
+    };
+    
+    // Mock data - you would replace this with your actual data from the CSV
+    const mockOrganizations = [
+      {
+        "Name": "California Rural Legal Assistance (CRLA)",
+        "EIN": "95-2428657",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Modesto",
+        "State": "CA",
+        "Total revenues": "$34,144,676"
+      },
+      {
+        "Name": "California Rural Legal Assistance Foundation",
+        "EIN": "68-0233370",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Sacramento",
+        "State": "CA",
+        "Total revenues": "$7,705,233"
+      },
+      {
+        "Name": "Center on Race Poverty & Environment (CRPE)",
+        "EIN": "94-2859639",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Delano",
+        "State": "CA",
+        "Total revenues": "$2,083,620"
+      },
+      {
+        "Name": "Center for Workers' Rights",
+        "EIN": "47-2846161",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Sacramento",
+        "State": "CA",
+        "Total revenues": "$869,688"
+      },
+      {
+        "Name": "Farmworker Legal Services (California Rural Legal Asst)",
+        "EIN": "95-2428657",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Sacramento",
+        "State": "CA",
+        "Total revenues": "$13,876,543"
+      },
+      {
+        "Name": "UFW Foundation",
+        "EIN": "47-5566451",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Tehachapi",
+        "State": "CA",
+        "Total revenues": "$5,876,432"
+      },
+      {
+        "Name": "California Farmworker Foundation",
+        "EIN": "83-0593856",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Delano",
+        "State": "CA",
+        "Total revenues": "$1,376,390"
+      },
+      {
+        "Name": "UFW Pension Fund",
+        "EIN": "95-6433144",
+        "IRS 501(c) type": "501(c)(9)",
+        "City": "Bakersfield",
+        "State": "CA",
+        "Total revenues": "$6,543,987"
+      },
+      {
+        "Name": "UFW Health Plan",
+        "EIN": "95-6070650",
+        "IRS 501(c) type": "501(c)(9)",
+        "City": "Bakersfield",
+        "State": "CA",
+        "Total revenues": "$7,654,321"
+      },
+      {
+        "Name": "UFW Juan de la Cruz Pension Fund",
+        "EIN": "95-6059774",
+        "IRS 501(c) type": "501(c)(9)",
+        "City": "Bakersfield",
+        "State": "CA",
+        "Total revenues": "$8,765,432"
+      },
+      {
+        "Name": "UFW Health & Welfare Trust",
+        "EIN": "94-6152408",
+        "IRS 501(c) type": "501(c)(9)",
+        "City": "Bakersfield",
+        "State": "CA",
+        "Total revenues": "$4,567,890"
+      }
+    ];
+    
+    // Global variables
+    let view;
+    let graphicsLayer;
+    let organizations = [];
+    let cityGroups = {};
+    let currentFilter = 'all';
+    let selectedCity = null;
+    
+    // Initialize the map
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/Graphic",
+      "esri/layers/GraphicsLayer",
+      "esri/geometry/Point",
+      "esri/widgets/BasemapToggle",
+      "esri/widgets/Home",
+      "esri/geometry/Extent",
+      "esri/geometry/SpatialReference",
+      "esri/request"
+    ], function(Map, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, SpatialReference, esriRequest) {
+      
+      // Create map with basemap
+      const map = new Map({
+        basemap: "topo-vector"
+      });
+      
+      // Create graphics layer for organizations
+      graphicsLayer = new GraphicsLayer();
+      map.add(graphicsLayer);
+      
+      // Create the map view
+      view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [-119.4179, 36.7783], // Center on California
+        zoom: 6
+      });
+      
+      // Add basemap toggle
+      const basemapToggle = new BasemapToggle({
+        view: view,
+        nextBasemap: "satellite"
+      });
+      view.ui.add(basemapToggle, "bottom-right");
+      
+      // Define California extent
+      const caExtent = new Extent({
+        xmin: -124.4096,
+        ymin: 32.5343,
+        xmax: -114.1308,
+        ymax: 42.0095,
+        spatialReference: {
+          wkid: 4326
+        }
+      });
+      
+      // Add home widget
+      const homeWidget = new Home({
+        view: view,
+        viewpoint: {
+          targetGeometry: caExtent
+        }
+      });
+      view.ui.add(homeWidget, "top-left");
+      
+      // Function to parse revenue values
+      function parseRevenue(revenueStr) {
+        if (!revenueStr) return 0;
+        return parseInt(revenueStr.replace(/\$|,/g, '')) || 0;
+      }
+      
+      // Function to format revenue for display
+      function formatRevenue(value) {
+        if (value >= 1000000) {
+          return `$${(value / 1000000).toFixed(1)}M`;
+        } else if (value >= 1000) {
+          return `$${(value / 1000).toFixed(1)}K`;
+        }
+        return `$${value}`;
+      }
+      
+      // Get marker size based on revenue
+      function getMarkerSize(revenue) {
+        if (revenue > 20000000) return 24;
+        if (revenue > 10000000) return 20;
+        if (revenue > 5000000) return 16;
+        if (revenue > 1000000) return 12;
+        return 10;
+      }
+      
+      // Get marker color based on revenue
+      function getMarkerColor(revenue) {
+        if (revenue > 20000000) return [204, 0, 0, 0.8];
+        if (revenue > 10000000) return [255, 0, 0, 0.8];
+        if (revenue > 5000000) return [255, 153, 0, 0.8];
+        if (revenue > 1000000) return [255, 204, 0, 0.8];
+        return [76, 175, 80, 0.8];
+      }
+      
+      // Create a popup template for marker clicks
+      const popupTemplate = {
+        title: "{city}",
+        content: [
+          {
+            type: "text",
+            text: "{count} organizations with total funding of {totalRevenue}"
+          }
+        ]
+      };
+      
+      // Function to filter graphics based on revenue
+      function filterGraphics(minRevenue, maxRevenue = Infinity) {
+        graphicsLayer.graphics.forEach(graphic => {
+          const totalRevenue = graphic.attributes.totalRevenue;
+          if (totalRevenue >= minRevenue && totalRevenue < maxRevenue) {
+            graphic.visible = true;
+          } else {
+            graphic.visible = false;
+          }
+        });
+      }
+      
+      // Function to update info panel with organizations data
+      function updateInfoPanel(cityName = null) {
+        const orgsListElement = document.getElementById("orgsList");
+        orgsListElement.innerHTML = "";
+        
+        let displayOrgs = [];
+        
+        if (cityName) {
+          // Selected city view
+          document.getElementById("selectedCity").textContent = `${cityName}, CA`;
+          displayOrgs = organizations.filter(org => org.City === cityName);
+          
+          // Add back button
+          const backButton = document.createElement("button");
+          backButton.textContent = "Back to All Cities";
+          backButton.className = "action-btn";
+          backButton.onclick = function() {
+            selectedCity = null;
+            updateInfoPanel();
+            view.goTo(caExtent);
+          };
+          orgsListElement.appendChild(backButton);
+        } else {
+          // All cities view
+          document.getElementById("selectedCity").textContent = "";
+          
+          // Group by city and create city list
+          for (const city in cityGroups) {
+            const cityInfo = cityGroups[city];
+            
+            // Apply revenue filter
+            if (currentFilter === 'small' && cityInfo.totalRevenue >= 1000000) continue;
+            if (currentFilter === 'med' && (cityInfo.totalRevenue < 1000000 || cityInfo.totalRevenue >= 10000000)) continue;
+            if (currentFilter === 'large' && cityInfo.totalRevenue < 10000000) continue;
+            
+            const cityItem = document.createElement("div");
+            cityItem.className = "org-item";
+            cityItem.innerHTML = `
+              <div class="org-name">${city}</div>
+              <div>${cityInfo.count} organizations</div>
+              <div>${formatRevenue(cityInfo.totalRevenue)}</div>
+            `;
+            
+            // Add click event to show city detail
+            cityItem.style.cursor = "pointer";
+            cityItem.onclick = function() {
+              selectedCity = city;
+              updateInfoPanel(city);
+              
+              // Zoom to city
+              if (cityCoordinates[city]) {
+                const point = new Point({
+                  longitude: cityCoordinates[city][0],
+                  latitude: cityCoordinates[city][1]
+                });
+                view.goTo({
+                  target: point,
+                  zoom: 10
+                });
+              }
+            };
+            
+            orgsListElement.appendChild(cityItem);
+          }
+          
+          return;
+        }
+        
+        // Sort organizations by revenue
+        displayOrgs.sort((a, b) => parseRevenue(b["Total revenues"]) - parseRevenue(a["Total revenues"]));
+        
+        // Display organizations for selected city
+        displayOrgs.forEach(org => {
+          const revenue = parseRevenue(org["Total revenues"]);
+          
+          // Apply revenue filter
+          if (currentFilter === 'small' && revenue >= 1000000) return;
+          if (currentFilter === 'med' && (revenue < 1000000 || revenue >= 10000000)) return;
+          if (currentFilter === 'large' && revenue < 10000000) return;
+          
+          const orgItem = document.createElement("div");
+          orgItem.className = "org-item";
+          orgItem.innerHTML = `
+            <div class="org-name">${org.Name}</div>
+            <div>${org["Total revenues"]}</div>
+            <div>${org["IRS 501(c) type"]}</div>
+          `;
+          orgsListElement.appendChild(orgItem);
+        });
+      }
+      
+      // Function to load data and set up the map
+      function loadData() {
+        // In a real application, you would fetch CSV data here
+        // For this example, we'll use mock data
+        organizations = mockOrganizations;
+        
+        // Process organizations and group by city
+        cityGroups = {};
+        let totalRevenue = 0;
+        
+        organizations.forEach(org => {
+          if (org.City && org.State === 'CA') {
+            const city = org.City;
+            const revenue = parseRevenue(org["Total revenues"]);
+            totalRevenue += revenue;
+            
+            if (!cityGroups[city]) {
+              cityGroups[city] = {
+                city: city,
+                count: 0,
+                totalRevenue: 0,
+                organizations: []
+              };
+            }
+            
+            cityGroups[city].count++;
+            cityGroups[city].totalRevenue += revenue;
+            cityGroups[city].organizations.push(org);
+          }
+        });
+        
+        // Update statistics
+        document.getElementById("orgCount").textContent = organizations.filter(o => o.State === 'CA').length;
+        document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
+        
+        // Create markers for each city
+        Object.keys(cityGroups).forEach(city => {
+          const cityInfo = cityGroups[city];
+          
+          // Check if we have coordinates for this city
+          if (cityCoordinates[city]) {
+            const [longitude, latitude] = cityCoordinates[city];
+            
+            // Create point
+            const point = new Point({
+              longitude: longitude,
+              latitude: latitude
+            });
+            
+            // Create marker symbol
+            const markerSymbol = {
+              type: "simple-marker",
+              size: getMarkerSize(cityInfo.totalRevenue),
+              color: getMarkerColor(cityInfo.totalRevenue),
+              outline: {
+                color: [255, 255, 255],
+                width: 2
+              }
+            };
+            
+            // Create graphic
+            const graphic = new Graphic({
+              geometry: point,
+              symbol: markerSymbol,
+              attributes: {
+                city: city,
+                count: cityInfo.count,
+                organizations: cityInfo.organizations,
+                totalRevenue: cityInfo.totalRevenue,
+                totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
+              },
+              popupTemplate: popupTemplate
+            });
+            
+            // Add to graphics layer
+            graphicsLayer.add(graphic);
+          }
+        });
+        
+        // Update info panel
+        updateInfoPanel();
+        
+        // Set up click handler for graphics
+        view.on("click", function(event) {
+          view.hitTest(event).then(function(response) {
+            const graphic = response.results.find(result => {
+              return result.graphic.layer === graphicsLayer;
+            });
+            
+            if (graphic) {
+              const city = graphic.graphic.attributes.city;
+              selectedCity = city;
+              updateInfoPanel(city);
+            }
+          });
+        });
+      }
+      
+      // Handle filter buttons
+      document.getElementById("filterAll").addEventListener("click", function() {
+        currentFilter = 'all';
+        setActiveFilterButton(this);
+        filterGraphics(0);
+        updateInfoPanel(selectedCity);
+      });
+      
+      document.getElementById("filterLarge").addEventListener("click", function() {
+        currentFilter = 'large';
+        setActiveFilterButton(this);
+        filterGraphics(10000000);
+        updateInfoPanel(selectedCity);
+      });
+      
+      document.getElementById("filterMed").addEventListener("click", function() {
+        currentFilter = 'med';
+        setActiveFilterButton(this);
+        filterGraphics(1000000, 10000000);
+        updateInfoPanel(selectedCity);
+      });
+      
+      document.getElementById("filterSmall").addEventListener("click", function() {
+        currentFilter = 'small';
+        setActiveFilterButton(this);
+        filterGraphics(0, 1000000);
+        updateInfoPanel(selectedCity);
+      });
+      
+      // Helper function to set active filter button
+      function setActiveFilterButton(button) {
+        const buttons = document.querySelectorAll(".filter-btn");
+        buttons.forEach(btn => {
+          btn.classList.remove("active");
+        });
+        button.classList.add("active");
+      }
+      
+      // Reset view button
+      document.getElementById("resetViewBtn").addEventListener("click", function() {
+        view.goTo(caExtent);
+        selectedCity = null;
+        updateInfoPanel();
+      });
+      
+      // Initialize the application
+      view.when(function() {
+        loadData();
+      });
+      
+      // In a real application, you would have code to load the CSV file here
+      // For example:
+      /*
+      esriRequest("cleandata_farmworkerorganizations.csv", {
+        responseType: "text"
+      }).then(function(response) {
+        // Parse CSV data here
+        // Use a CSV parsing library or custom function
+        // Then process the data as in the loadData function
+      }).catch(function(error) {
+        console.error("Error loading CSV:", error);
+        // Fallback to mock data
+        loadData();
+      });
+      */
+    });
+  </script>
+</body>
+</html>
