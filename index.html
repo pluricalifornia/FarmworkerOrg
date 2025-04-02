@@ -166,6 +166,20 @@
       padding: 10px 15px;
       cursor: pointer;
     }
+    
+    #resetCacheBtn {
+      position: absolute;
+      bottom: 200px;
+      left: 20px;
+      z-index: 99;
+      background-color: white;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      padding: 10px 15px;
+      cursor: pointer;
+      color: #d9534f; /* Bootstrap danger color */
+    }
   </style>
 </head>
 
@@ -230,6 +244,7 @@
   </div>
   
   <button id="resetViewBtn">Reset View</button>
+  <button id="resetCacheBtn">Reset Cache</button>
 
   <!-- Load ArcGIS API -->
   <script src="https://js.arcgis.com/4.32/"></script>
@@ -247,8 +262,9 @@
       debugContent.scrollTop = debugContent.scrollHeight;
     }
     
-    // City coordinates lookup
+    // Enhanced list of California city coordinates
     const cityCoordinates = {
+      // Original coordinates
       "Bakersfield": [-119.0187, 35.3733],
       "Fresno": [-119.7871, 36.7378],
       "Sacramento": [-121.4944, 38.5816],
@@ -267,22 +283,85 @@
       "Chico": [-121.8375, 39.7285],
       "Indio": [-116.2023, 33.7206],
       "El Centro": [-115.5310, 32.7920],
-      "Davis": [-121.7405, 38.5449]
+      "Davis": [-121.7405, 38.5449],
+      
+      // Additional common California cities
+      "San Francisco": [-122.4194, 37.7749],
+      "San Diego": [-117.1611, 32.7157],
+      "San Jose": [-121.8853, 37.3382],
+      "Santa Rosa": [-122.7141, 38.4404],
+      "Stockton": [-121.2908, 37.9577],
+      "Riverside": [-117.3755, 33.9806],
+      "Santa Ana": [-117.8703, 33.7455],
+      "Irvine": [-117.8265, 33.6846],
+      "Oakland": [-122.2712, 37.8044],
+      "Anaheim": [-117.9145, 33.8366],
+      "Long Beach": [-118.1937, 33.7701],
+      "Santa Barbara": [-119.6982, 34.4208],
+      "Berkeley": [-122.2730, 37.8715],
+      "Salinas": [-121.6555, 36.6777],
+      "San Bernardino": [-117.2898, 34.1083],
+      "Santa Clara": [-121.9552, 37.3541],
+      "Santa Cruz": [-122.0308, 36.9741],
+      "Watsonville": [-121.7568, 36.9102],
+      "Merced": [-120.4829, 37.3022],
+      "Redding": [-122.3917, 40.5865],
+      "San Luis Obispo": [-120.6596, 35.2828],
+      "Napa": [-122.2855, 38.2975],
+      "Eureka": [-124.1636, 40.8021],
+      "Palm Springs": [-116.5453, 33.8303],
+      "Monterey": [-121.8947, 36.6002],
+      "Ukiah": [-123.2078, 39.1502],
+      "Moreno Valley": [-117.2298, 33.9425],
+      "San Marcos": [-117.1661, 33.1434],
+      "Mountain View": [-122.0838, 37.3861],
+      "Felton": [-122.0733, 37.0513],
+      "Clovis": [-119.7026, 36.8252],
+      "Walnut Grove": [-121.5102, 38.2427],
+      "Brentwood": [-121.6961, 37.9319],
+      "Parlier": [-119.5271, 36.6116],
+      "Orange Cove": [-119.3143, 36.6246],
+      "Calistoga": [-122.5797, 38.5787]
     };
     
-    // Load geocode cache from localStorage
+    // Load geocode cache from localStorage with improved error handling
     let storedGeoCache = {};
     try {
+      debugLog("Attempting to load geocode cache from localStorage...");
       const cachedCoordinates = localStorage.getItem('farmworkerMapGeoCache');
+      
       if (cachedCoordinates) {
-        storedGeoCache = JSON.parse(cachedCoordinates);
-        debugLog(`Loaded ${Object.keys(storedGeoCache).length} cached coordinates from localStorage`);
+        try {
+          // Parse the JSON data
+          const parsedCache = JSON.parse(cachedCoordinates);
+          
+          // Validate that it's an object with expected format
+          if (typeof parsedCache === 'object' && parsedCache !== null) {
+            storedGeoCache = parsedCache;
+            const cityCount = Object.keys(storedGeoCache).length;
+            debugLog(`Successfully loaded ${cityCount} cached coordinates from localStorage`);
+            
+            // Log a few examples to verify format
+            const sampleCities = Object.keys(storedGeoCache).slice(0, 3);
+            sampleCities.forEach(city => {
+              debugLog(`Sample: ${city} => [${storedGeoCache[city]}]`);
+            });
+          } else {
+            debugLog("WARNING: Cached coordinates not in expected format, ignoring cache");
+          }
+        } catch (parseError) {
+          debugLog(`Error parsing cached coordinates: ${parseError.message}`);
+          // Clear corrupted cache
+          localStorage.removeItem('farmworkerMapGeoCache');
+        }
+      } else {
+        debugLog("No geocode cache found in localStorage");
       }
     } catch (e) {
-      debugLog("Error loading cached coordinates: " + e.message);
+      debugLog(`Error accessing localStorage: ${e.message}`);
     }
     
-    // Expanded mock data for testing
+    // Fallback data if CSV load fails
     const mockOrganizations = [
       {
         "Name": "California Rural Legal Assistance (CRLA)",
@@ -349,92 +428,12 @@
         "Total revenues": "$780,450"
       },
       {
-        "Name": "Mixteco/Indígena Community Organizing Project",
-        "EIN": "27-0841562",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Oxnard",
-        "State": "CA",
-        "Total revenues": "$2,500,000"
-      },
-      {
         "Name": "Central Valley Farmworker Foundation",
         "EIN": "47-3942156",
         "IRS 501(c) type": "501(c)(3)",
         "City": "Delano",
         "State": "CA",
         "Total revenues": "$950,000"
-      },
-      {
-        "Name": "Farmworker Institute for Education & Leadership Development",
-        "EIN": "77-0471883",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Bakersfield",
-        "State": "CA",
-        "Total revenues": "$1,250,000"
-      },
-      {
-        "Name": "California Farmworker Foundation",
-        "EIN": "81-4424062",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Delano",
-        "State": "CA",
-        "Total revenues": "$1,870,000"
-      },
-      {
-        "Name": "Agricultural Workers Health Centers",
-        "EIN": "95-3820167",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Fresno",
-        "State": "CA",
-        "Total revenues": "$8,500,000"
-      },
-      {
-        "Name": "Dolores Huerta Foundation",
-        "EIN": "91-2146597",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Bakersfield", 
-        "State": "CA",
-        "Total revenues": "$5,700,000"
-      },
-      {
-        "Name": "Centro Binacional para el Desarrollo Indígena Oaxaqueño",
-        "EIN": "20-2578892",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Fresno",
-        "State": "CA",
-        "Total revenues": "$1,320,000"
-      },
-      {
-        "Name": "California Institute for Rural Studies",
-        "EIN": "94-2687658",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Davis",
-        "State": "CA",
-        "Total revenues": "$950,000"
-      },
-      {
-        "Name": "La Cooperativa Campesina de California",
-        "EIN": "68-0410095",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Sacramento",
-        "State": "CA",
-        "Total revenues": "$15,720,000"
-      },
-      {
-        "Name": "Líderes Campesinas en California",
-        "EIN": "95-4454748",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Oxnard",
-        "State": "CA",
-        "Total revenues": "$890,000"
-      },
-      {
-        "Name": "Farmworker Health Services",
-        "EIN": "47-2145678",
-        "IRS 501(c) type": "501(c)(3)",
-        "City": "Coachella",
-        "State": "CA",
-        "Total revenues": "$3,500,000"
       },
       {
         "Name": "Proteus Inc.",
@@ -453,6 +452,110 @@
     let cityGroups = {};
     let currentFilter = 'all';
     let selectedCity = null;
+    
+    // Function to reset the geocode cache
+    function resetGeocodeCache() {
+      try {
+        localStorage.removeItem('farmworkerMapGeoCache');
+        debugLog("Geocode cache reset successfully");
+        return true;
+      } catch (e) {
+        debugLog(`Error resetting geocode cache: ${e.message}`);
+        return false;
+      }
+    }
+    
+    // Function to validate if coordinates are within California
+    function isValidCaliforniaCoordinate(coordinates) {
+      // Rough bounding box for California
+      const [lon, lat] = coordinates;
+      return (
+        lon >= -124.5 && lon <= -114.0 && // Longitude bounds for California
+        lat >= 32.5 && lat <= 42.0        // Latitude bounds for California
+      );
+    }
+    
+    // Function to bulk clear existing invalid coordinates
+    function cleanupInvalidCachedCoordinates() {
+      let removedCount = 0;
+      
+      debugLog("Checking cached coordinates for validity...");
+      
+      for (const city in geocodeCache) {
+        const coords = geocodeCache[city];
+        if (!isValidCaliforniaCoordinate(coords)) {
+          debugLog(`Removing invalid coordinates for ${city}: [${coords}]`);
+          delete geocodeCache[city];
+          removedCount++;
+        }
+      }
+      
+      if (removedCount > 0) {
+        debugLog(`Removed ${removedCount} invalid coordinates from cache`);
+        saveGeocodeCache();
+      } else {
+        debugLog("No invalid coordinates found in cache");
+      }
+    }
+    
+    // Function to save geocode cache to localStorage with improved error handling
+    function saveGeocodeCache() {
+      try {
+        // Only save if we actually have coordinates to save
+        if (geocodeCache && Object.keys(geocodeCache).length > 0) {
+          // Convert to JSON
+          const cacheJson = JSON.stringify(geocodeCache);
+          
+          // Sanity check the size (localStorage has limits)
+          if (cacheJson.length > 5000000) {
+            debugLog("WARNING: Geocode cache too large for localStorage, trimming...");
+            // If needed, implement trimming logic here
+          }
+          
+          // Save to localStorage
+          localStorage.setItem('farmworkerMapGeoCache', cacheJson);
+          debugLog(`Saved ${Object.keys(geocodeCache).length} coordinates to localStorage`);
+        } else {
+          debugLog("No geocode data to save to localStorage");
+        }
+      } catch (e) {
+        debugLog(`Error saving coordinates cache: ${e.message}`);
+      }
+    }
+    
+    // Function to parse revenue values
+    function parseRevenue(revenueStr) {
+      if (!revenueStr) return 0;
+      return parseInt(revenueStr.toString().replace(/\$|,/g, '')) || 0;
+    }
+    
+    // Function to format revenue for display
+    function formatRevenue(value) {
+      if (value >= 1000000) {
+        return `$${(value / 1000000).toFixed(1)}M`;
+      } else if (value >= 1000) {
+        return `$${(value / 1000).toFixed(1)}K`;
+      }
+      return `$${value}`;
+    }
+    
+    // Get marker size based on revenue
+    function getMarkerSize(revenue) {
+      if (revenue > 20000000) return 24;
+      if (revenue > 10000000) return 20;
+      if (revenue > 5000000) return 16;
+      if (revenue > 1000000) return 12;
+      return 10;
+    }
+    
+    // Get marker color based on revenue
+    function getMarkerColor(revenue) {
+      if (revenue > 20000000) return [204, 0, 0, 0.8];
+      if (revenue > 10000000) return [255, 0, 0, 0.8];
+      if (revenue > 5000000) return [255, 153, 0, 0.8];
+      if (revenue > 1000000) return [255, 204, 0, 0.8];
+      return [76, 175, 80, 0.8];
+    }
     
     // Function to inspect CSV headers
     function inspectCsvHeaders(csvData) {
@@ -559,40 +662,6 @@
       return organizations;
     }
     
-    // Function to parse revenue values
-    function parseRevenue(revenueStr) {
-      if (!revenueStr) return 0;
-      return parseInt(revenueStr.toString().replace(/\$|,/g, '')) || 0;
-    }
-    
-    // Function to format revenue for display
-    function formatRevenue(value) {
-      if (value >= 1000000) {
-        return `$${(value / 1000000).toFixed(1)}M`;
-      } else if (value >= 1000) {
-        return `$${(value / 1000).toFixed(1)}K`;
-      }
-      return `$${value}`;
-    }
-    
-    // Get marker size based on revenue
-    function getMarkerSize(revenue) {
-      if (revenue > 20000000) return 24;
-      if (revenue > 10000000) return 20;
-      if (revenue > 5000000) return 16;
-      if (revenue > 1000000) return 12;
-      return 10;
-    }
-    
-    // Get marker color based on revenue
-    function getMarkerColor(revenue) {
-      if (revenue > 20000000) return [204, 0, 0, 0.8];
-      if (revenue > 10000000) return [255, 0, 0, 0.8];
-      if (revenue > 5000000) return [255, 153, 0, 0.8];
-      if (revenue > 1000000) return [255, 204, 0, 0.8];
-      return [76, 175, 80, 0.8];
-    }
-    
     // Use the AMD pattern as recommended by ArcGIS
     require([
       "esri/Map", 
@@ -603,66 +672,91 @@
       "esri/widgets/BasemapToggle",
       "esri/widgets/Home",
       "esri/geometry/Extent",
-      "esri/request",
-      "esri/rest/locator" // Updated: Changed from "esri/tasks/Locator" to "esri/rest/locator"
-    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest, locator) => {
+      "esri/request"
+    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest) => {
       debugLog("ArcGIS modules loaded successfully");
       
       try {
-        // Define the geocoding service URL
-        const geocodingServiceUrl = "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-        
         // Create geocode cache by combining hardcoded and stored coordinates
         const geocodeCache = {...cityCoordinates, ...storedGeoCache};
         
-        // Function to save geocode cache to localStorage
-        function saveGeocodeCache() {
-          try {
-            localStorage.setItem('farmworkerMapGeoCache', JSON.stringify(geocodeCache));
-            debugLog(`Saved ${Object.keys(geocodeCache).length} coordinates to localStorage`);
-          } catch (e) {
-            debugLog(`Error saving coordinates cache: ${e.message}`);
-          }
-        }
-        
-        // Function to geocode a city (updated to use locator module)
+        // Updated geocodeCity function using fetch with Nominatim API
         async function geocodeCity(cityName, state = "CA") {
           // Check cache first
           if (geocodeCache[cityName]) {
-            debugLog(`Using cached coordinates for ${cityName}`);
-            return geocodeCache[cityName];
+            // Validate cached coordinates
+            const coords = geocodeCache[cityName];
+            if (isValidCaliforniaCoordinate(coords)) {
+              debugLog(`Using cached coordinates for ${cityName}: [${coords}]`);
+              return coords;
+            } else {
+              debugLog(`Found invalid cached coordinates for ${cityName}: [${coords}], re-geocoding`);
+              // If invalid, continue to geocode
+            }
           }
           
           debugLog(`Geocoding city: ${cityName}, ${state}`);
           
           try {
-            // Updated params format for the new locator module
-            const params = {
-              address: `${cityName}, ${state}`,
-              outFields: ["*"],
-              countryCode: "USA",
-              maxLocations: 1
-            };
+            // Use OpenStreetMap's Nominatim service
+            const encodedCity = encodeURIComponent(cityName);
+            const encodedState = encodeURIComponent(state);
             
-            const results = await locator.addressToLocations(geocodingServiceUrl, params);
+            const url = `https://nominatim.openstreetmap.org/search?city=${encodedCity}&state=${encodedState}&country=USA&format=json`;
             
-            if (results && results.length > 0) {
-              const coords = [results[0].location.longitude, results[0].location.latitude];
-              debugLog(`Successfully geocoded ${cityName}: [${coords}]`);
+            // Important: Add a small delay to respect rate limits
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const response = await fetch(url, {
+              headers: {
+                // It's good practice to add a user agent when using Nominatim
+                'User-Agent': 'CaliforniaFarmworkerMap/1.0'
+              }
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data && data.length > 0) {
+              // Get longitude and latitude from first result
+              const coords = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
               
-              // Save to cache
-              geocodeCache[cityName] = coords;
-              
-              // Save updated cache to localStorage
-              saveGeocodeCache();
-              
-              return coords;
+              // Validate coordinates to make sure they're in California
+              if (isValidCaliforniaCoordinate(coords)) {
+                debugLog(`Successfully geocoded ${cityName}: [${coords}]`);
+                
+                // Save to cache
+                geocodeCache[cityName] = coords;
+                saveGeocodeCache();
+                
+                return coords;
+              } else {
+                debugLog(`Nominatim returned coordinates outside California for ${cityName}: [${coords}]`);
+                return null;
+              }
             } else {
               debugLog(`No geocoding results for: ${cityName}, ${state}`);
+              
+              // Fallback to hardcoded coordinates if available
+              if (cityCoordinates[cityName]) {
+                debugLog(`Using fallback hardcoded coordinates for ${cityName}`);
+                return cityCoordinates[cityName];
+              }
+              
               return null;
             }
           } catch (error) {
             debugLog(`Geocoding error for ${cityName}: ${error.message}`);
+            
+            // Fallback to hardcoded coordinates if available
+            if (cityCoordinates[cityName]) {
+              debugLog(`Using fallback hardcoded coordinates for ${cityName} after error`);
+              return cityCoordinates[cityName];
+            }
+            
             return null;
           }
         }
@@ -672,9 +766,16 @@
           basemap: "topo-vector"
         });
         
-        // Create graphics layer for organizations
-        graphicsLayer = new GraphicsLayer();
+        // Create graphics layer for organizations with explicit visibility settings
+        graphicsLayer = new GraphicsLayer({
+          visible: true,  // Explicitly set to visible
+          opacity: 1,     // Full opacity
+          title: "Organizations"  // Give it a title for easier identification
+        });
+        
+        // Add it to the map and ensure it's added successfully
         map.add(graphicsLayer);
+        debugLog(`Added graphics layer to map: ${graphicsLayer.id}`);
         
         // Create the map view
         view = new MapView({
@@ -721,6 +822,40 @@
             }
           ]
         };
+        
+        // Function to check graphics layer visibility
+        function checkGraphicsLayerVisibility() {
+          debugLog("Checking graphics layer visibility...");
+          
+          // Check if the layer exists
+          if (!graphicsLayer) {
+            debugLog("ERROR: Graphics layer is not defined");
+            return false;
+          }
+          
+          // Check visibility property
+          debugLog(`Graphics layer visibility: ${graphicsLayer.visible}`);
+          
+          // Check if it has any graphics
+          debugLog(`Graphics layer has ${graphicsLayer.graphics.length} graphics`);
+          
+          // Check if it's in the map's layers
+          const isInMap = map.layers.some(layer => layer === graphicsLayer);
+          debugLog(`Graphics layer is ${isInMap ? '' : 'NOT '} in the map`);
+          
+          // Ensure it's visible and in the map
+          if (!graphicsLayer.visible) {
+            debugLog("Setting graphics layer to visible");
+            graphicsLayer.visible = true;
+          }
+          
+          if (!isInMap) {
+            debugLog("Re-adding graphics layer to map");
+            map.add(graphicsLayer);
+          }
+          
+          return true;
+        }
         
         // Function to filter graphics based on revenue
         function filterGraphics(minRevenue, maxRevenue = Infinity) {
@@ -974,6 +1109,9 @@
             // Save the complete geocode cache
             saveGeocodeCache();
             
+            // Check graphics layer visibility after adding markers
+            checkGraphicsLayerVisibility();
+            
             // Update info panel
             updateInfoPanel();
           } catch (error) {
@@ -1067,6 +1205,42 @@
           tryNextFile();
         }
         
+        // Add a test marker to verify the graphics layer is working
+        function addTestMarker() {
+          try {
+            debugLog("Adding test marker to verify graphics layer...");
+            const testPoint = new Point({
+              longitude: -119.0187, 
+              latitude: 35.3733
+            });
+            
+            const testGraphic = new Graphic({
+              geometry: testPoint,
+              symbol: {
+                type: "simple-marker",
+                size: 20,
+                color: [0, 0, 255, 0.8], // Blue
+                outline: {
+                  color: [255, 255, 255],
+                  width: 2
+                }
+              },
+              attributes: {
+                city: "TEST MARKER",
+                count: 1,
+                totalRevenue: 1000000,
+                totalRevenueDisplay: "$1.0M"
+              },
+              popupTemplate: popupTemplate
+            });
+            
+            graphicsLayer.add(testGraphic);
+            debugLog("Test marker added successfully");
+          } catch (error) {
+            debugLog(`Error adding test marker: ${error.message}`);
+          }
+        }
+        
         // Set up click handler for graphics
         view.on("click", function(event) {
           view.hitTest(event).then(function(response) {
@@ -1127,51 +1301,28 @@
           updateInfoPanel();
         });
         
-        // Add a manual test marker to verify graphics layer is working
-        function addTestMarker() {
-          try {
-            debugLog("Adding test marker to verify graphics layer...");
-            const testPoint = new Point({
-              longitude: -119.0187, 
-              latitude: 35.3733
-            });
-            
-            const testGraphic = new Graphic({
-              geometry: testPoint,
-              symbol: {
-                type: "simple-marker",
-                size: 20,
-                color: [255, 0, 0, 0.8],
-                outline: {
-                  color: [255, 255, 255],
-                  width: 2
-                }
-              },
-              attributes: {
-                city: "TEST MARKER",
-                count: 1,
-                totalRevenue: 1000000,
-                totalRevenueDisplay: "$1.0M"
-              },
-              popupTemplate: popupTemplate
-            });
-            
-            graphicsLayer.add(testGraphic);
-            debugLog("Test marker added successfully");
-          } catch (error) {
-            debugLog(`Error adding test marker: ${error.message}`);
+        // Reset cache button
+        document.getElementById("resetCacheBtn").addEventListener("click", function() {
+          if (confirm("This will reset your geocode cache. Continue?")) {
+            if (resetGeocodeCache()) {
+              alert("Geocache reset. Reloading the map...");
+              location.reload();
+            }
           }
-        }
+        });
         
         // Initialize the application when view is ready
         view.when(function() {
-          debugLog("Map view initialized, loading data...");
+          debugLog("Map view initialized");
           
-          // First add a test marker to verify the graphics layer is working
-          // Uncomment this line for troubleshooting if needed
-          // addTestMarker();
+          // Check for invalid coordinates before processing
+          cleanupInvalidCachedCoordinates();
           
-          // Then load the real data
+          // Add a test marker to verify the graphics layer is working
+          addTestMarker();
+          
+          // Continue with loading data
+          debugLog("Loading data...");
           loadData();
         });
       } catch (error) {
@@ -1182,4 +1333,3 @@
   </script>
 </body>
 </html>
-              
