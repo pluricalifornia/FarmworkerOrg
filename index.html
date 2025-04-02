@@ -7,7 +7,6 @@
   
   <!-- Load the ArcGIS Maps SDK for JavaScript core API -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css"/>
-  <script src="https://js.arcgis.com/4.32/"></script>
   
   <!-- Add Papa Parse for CSV parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -232,6 +231,9 @@
   
   <button id="resetViewBtn">Reset View</button>
 
+  <!-- Load ArcGIS API -->
+  <script src="https://js.arcgis.com/4.32/"></script>
+
   <script>
     // Debug function to log information
     function debugLog(message) {
@@ -316,7 +318,41 @@
     let currentFilter = 'all';
     let selectedCity = null;
     
-    // Initialize the map
+    // Function to parse revenue values
+    function parseRevenue(revenueStr) {
+      if (!revenueStr) return 0;
+      return parseInt(revenueStr.toString().replace(/\$|,/g, '')) || 0;
+    }
+    
+    // Function to format revenue for display
+    function formatRevenue(value) {
+      if (value >= 1000000) {
+        return `$${(value / 1000000).toFixed(1)}M`;
+      } else if (value >= 1000) {
+        return `$${(value / 1000).toFixed(1)}K`;
+      }
+      return `$${value}`;
+    }
+    
+    // Get marker size based on revenue
+    function getMarkerSize(revenue) {
+      if (revenue > 20000000) return 24;
+      if (revenue > 10000000) return 20;
+      if (revenue > 5000000) return 16;
+      if (revenue > 1000000) return 12;
+      return 10;
+    }
+    
+    // Get marker color based on revenue
+    function getMarkerColor(revenue) {
+      if (revenue > 20000000) return [204, 0, 0, 0.8];
+      if (revenue > 10000000) return [255, 0, 0, 0.8];
+      if (revenue > 5000000) return [255, 153, 0, 0.8];
+      if (revenue > 1000000) return [255, 204, 0, 0.8];
+      return [76, 175, 80, 0.8];
+    }
+    
+    // Use the AMD pattern as recommended by ArcGIS
     require([
       "esri/Map", 
       "esri/views/MapView",
@@ -326,359 +362,297 @@
       "esri/widgets/BasemapToggle",
       "esri/widgets/Home",
       "esri/geometry/Extent",
-      "esri/geometry/SpatialReference",
       "esri/request"
-    ], function(EsriMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, SpatialReference, esriRequest) {
+    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest) => {
+      debugLog("ArcGIS modules loaded successfully");
       
-      // Create map with basemap - use EsriMap instead of Map to avoid naming conflict
-      const map = new EsriMap({
-        basemap: "topo-vector"
-      });
-      
-      // Create graphics layer for organizations
-      graphicsLayer = new GraphicsLayer();
-      map.add(graphicsLayer);
-      
-      // Create the map view
-      view = new MapView({
-        container: "viewDiv",
-        map: map,
-        center: [-119.4179, 36.7783], // Center on California
-        zoom: 6
-      });
-      
-      // Add basemap toggle
-      const basemapToggle = new BasemapToggle({
-        view: view,
-        nextBasemap: "satellite"
-      });
-      view.ui.add(basemapToggle, "bottom-right");
-      
-      // Define California extent
-      const caExtent = new Extent({
-        xmin: -124.4096,
-        ymin: 32.5343,
-        xmax: -114.1308,
-        ymax: 42.0095,
-        spatialReference: {
-          wkid: 4326
-        }
-      });
-      
-      // Add home widget
-      const homeWidget = new Home({
-        view: view,
-        viewpoint: {
-          targetGeometry: caExtent
-        }
-      });
-      view.ui.add(homeWidget, "top-left");
-      
-      // Function to parse revenue values
-      function parseRevenue(revenueStr) {
-        if (!revenueStr) return 0;
-        return parseInt(revenueStr.toString().replace(/\$|,/g, '')) || 0;
-      }
-      
-      // Function to format revenue for display
-      function formatRevenue(value) {
-        if (value >= 1000000) {
-          return `$${(value / 1000000).toFixed(1)}M`;
-        } else if (value >= 1000) {
-          return `$${(value / 1000).toFixed(1)}K`;
-        }
-        return `$${value}`;
-      }
-      
-      // Get marker size based on revenue
-      function getMarkerSize(revenue) {
-        if (revenue > 20000000) return 24;
-        if (revenue > 10000000) return 20;
-        if (revenue > 5000000) return 16;
-        if (revenue > 1000000) return 12;
-        return 10;
-      }
-      
-      // Get marker color based on revenue
-      function getMarkerColor(revenue) {
-        if (revenue > 20000000) return [204, 0, 0, 0.8];
-        if (revenue > 10000000) return [255, 0, 0, 0.8];
-        if (revenue > 5000000) return [255, 153, 0, 0.8];
-        if (revenue > 1000000) return [255, 204, 0, 0.8];
-        return [76, 175, 80, 0.8];
-      }
-      
-      // Create a popup template for marker clicks
-      const popupTemplate = {
-        title: "{city}",
-        content: [
-          {
-            type: "text",
-            text: "{count} organizations with total funding of {totalRevenueDisplay}"
-          }
-        ]
-      };
-      
-      // Function to filter graphics based on revenue
-      function filterGraphics(minRevenue, maxRevenue = Infinity) {
-        graphicsLayer.graphics.forEach(graphic => {
-          const totalRevenue = graphic.attributes.totalRevenue;
-          if (totalRevenue >= minRevenue && totalRevenue < maxRevenue) {
-            graphic.visible = true;
-          } else {
-            graphic.visible = false;
+      try {
+        // Create map with basemap
+        const map = new ArcGISMap({
+          basemap: "topo-vector"
+        });
+        
+        // Create graphics layer for organizations
+        graphicsLayer = new GraphicsLayer();
+        map.add(graphicsLayer);
+        
+        // Create the map view
+        view = new MapView({
+          container: "viewDiv",
+          map: map,
+          center: [-119.4179, 36.7783], // Center on California
+          zoom: 6
+        });
+        
+        // Add basemap toggle
+        const basemapToggle = new BasemapToggle({
+          view: view,
+          nextBasemap: "satellite"
+        });
+        view.ui.add(basemapToggle, "bottom-right");
+        
+        // Define California extent
+        const caExtent = new Extent({
+          xmin: -124.4096,
+          ymin: 32.5343,
+          xmax: -114.1308,
+          ymax: 42.0095,
+          spatialReference: {
+            wkid: 4326
           }
         });
-      }
-      
-      // Function to update info panel with organizations data
-      function updateInfoPanel(cityName = null) {
-        const orgsListElement = document.getElementById("orgsList");
-        orgsListElement.innerHTML = "";
         
-        let displayOrgs = [];
+        // Add home widget
+        const homeWidget = new Home({
+          view: view,
+          viewpoint: {
+            targetGeometry: caExtent
+          }
+        });
+        view.ui.add(homeWidget, "top-left");
         
-        if (cityName) {
-          // Selected city view
-          document.getElementById("selectedCity").textContent = `${cityName}, CA`;
-          displayOrgs = organizations.filter(org => org.City === cityName);
+        // Create a popup template for marker clicks
+        const popupTemplate = {
+          title: "{city}",
+          content: [
+            {
+              type: "text",
+              text: "{count} organizations with total funding of {totalRevenueDisplay}"
+            }
+          ]
+        };
+        
+        // Function to filter graphics based on revenue
+        function filterGraphics(minRevenue, maxRevenue = Infinity) {
+          graphicsLayer.graphics.forEach(graphic => {
+            const totalRevenue = graphic.attributes.totalRevenue;
+            if (totalRevenue >= minRevenue && totalRevenue < maxRevenue) {
+              graphic.visible = true;
+            } else {
+              graphic.visible = false;
+            }
+          });
+        }
+        
+        // Function to update info panel with organizations data
+        function updateInfoPanel(cityName = null) {
+          const orgsListElement = document.getElementById("orgsList");
+          orgsListElement.innerHTML = "";
           
-          // Add back button
-          const backButton = document.createElement("button");
-          backButton.textContent = "Back to All Cities";
-          backButton.className = "action-btn";
-          backButton.onclick = function() {
-            selectedCity = null;
-            updateInfoPanel();
-            view.goTo(caExtent);
-          };
-          orgsListElement.appendChild(backButton);
-        } else {
-          // All cities view
-          document.getElementById("selectedCity").textContent = "";
+          let displayOrgs = [];
           
-          // Group by city and create city list
-          for (const city in cityGroups) {
-            const cityInfo = cityGroups[city];
+          if (cityName) {
+            // Selected city view
+            document.getElementById("selectedCity").textContent = `${cityName}, CA`;
+            displayOrgs = organizations.filter(org => org.City === cityName);
             
-            // Apply revenue filter
-            if (currentFilter === 'small' && cityInfo.totalRevenue >= 1000000) continue;
-            if (currentFilter === 'med' && (cityInfo.totalRevenue < 1000000 || cityInfo.totalRevenue >= 10000000)) continue;
-            if (currentFilter === 'large' && cityInfo.totalRevenue < 10000000) continue;
-            
-            const cityItem = document.createElement("div");
-            cityItem.className = "org-item";
-            cityItem.innerHTML = `
-              <div class="org-name">${city}</div>
-              <div>${cityInfo.count} organizations</div>
-              <div>${formatRevenue(cityInfo.totalRevenue)}</div>
-            `;
-            
-            // Add click event to show city detail
-            cityItem.style.cursor = "pointer";
-            cityItem.onclick = function() {
-              selectedCity = city;
-              updateInfoPanel(city);
-              
-              // Zoom to city
-              if (cityCoordinates[city]) {
-                const point = new Point({
-                  longitude: cityCoordinates[city][0],
-                  latitude: cityCoordinates[city][1]
-                });
-                view.goTo({
-                  target: point,
-                  zoom: 10
-                });
-              }
+            // Add back button
+            const backButton = document.createElement("button");
+            backButton.textContent = "Back to All Cities";
+            backButton.className = "action-btn";
+            backButton.onclick = function() {
+              selectedCity = null;
+              updateInfoPanel();
+              view.goTo(caExtent);
             };
+            orgsListElement.appendChild(backButton);
+          } else {
+            // All cities view
+            document.getElementById("selectedCity").textContent = "";
             
-            orgsListElement.appendChild(cityItem);
-          }
-          
-          return;
-        }
-        
-        // Sort organizations by revenue
-        displayOrgs.sort((a, b) => parseRevenue(b["Total revenues"]) - parseRevenue(a["Total revenues"]));
-        
-        // Display organizations for selected city
-        displayOrgs.forEach(org => {
-          const revenue = parseRevenue(org["Total revenues"]);
-          
-          // Apply revenue filter
-          if (currentFilter === 'small' && revenue >= 1000000) return;
-          if (currentFilter === 'med' && (revenue < 1000000 || revenue >= 10000000)) return;
-          if (currentFilter === 'large' && revenue < 10000000) return;
-          
-          const orgItem = document.createElement("div");
-          orgItem.className = "org-item";
-          orgItem.innerHTML = `
-            <div class="org-name">${org.Name}</div>
-            <div>${org["Total revenues"]}</div>
-            <div>${org["IRS 501(c) type"]}</div>
-          `;
-          orgsListElement.appendChild(orgItem);
-        });
-      }
-      
-      // Process organizations data
-      function processOrganizations() {
-        // Group organizations by city
-        cityGroups = {};
-        let totalRevenue = 0;
-        let caOrgCount = 0;
-        
-        debugLog(`Processing ${organizations.length} organizations...`);
-        
-        organizations.forEach(org => {
-          // Check if organization has valid data
-          if (!org || !org.City || !org.State) {
-            debugLog(`Skipping invalid organization: ${JSON.stringify(org)}`);
+            // Group by city and create city list
+            for (const city in cityGroups) {
+              const cityInfo = cityGroups[city];
+              
+              // Apply revenue filter
+              if (currentFilter === 'small' && cityInfo.totalRevenue >= 1000000) continue;
+              if (currentFilter === 'med' && (cityInfo.totalRevenue < 1000000 || cityInfo.totalRevenue >= 10000000)) continue;
+              if (currentFilter === 'large' && cityInfo.totalRevenue < 10000000) continue;
+              
+              const cityItem = document.createElement("div");
+              cityItem.className = "org-item";
+              cityItem.innerHTML = `
+                <div class="org-name">${city}</div>
+                <div>${cityInfo.count} organizations</div>
+                <div>${formatRevenue(cityInfo.totalRevenue)}</div>
+              `;
+              
+              // Add click event to show city detail
+              cityItem.style.cursor = "pointer";
+              cityItem.onclick = function() {
+                selectedCity = city;
+                updateInfoPanel(city);
+                
+                // Zoom to city
+                if (cityCoordinates[city]) {
+                  const point = new Point({
+                    longitude: cityCoordinates[city][0],
+                    latitude: cityCoordinates[city][1]
+                  });
+                  view.goTo({
+                    target: point,
+                    zoom: 10
+                  });
+                }
+              };
+              
+              orgsListElement.appendChild(cityItem);
+            }
+            
             return;
           }
           
-          if (org.State === 'CA') {
-            const city = org.City.trim();
+          // Sort organizations by revenue
+          displayOrgs.sort((a, b) => parseRevenue(b["Total revenues"]) - parseRevenue(a["Total revenues"]));
+          
+          // Display organizations for selected city
+          displayOrgs.forEach(org => {
             const revenue = parseRevenue(org["Total revenues"]);
             
-            caOrgCount++;
-            totalRevenue += revenue;
+            // Apply revenue filter
+            if (currentFilter === 'small' && revenue >= 1000000) return;
+            if (currentFilter === 'med' && (revenue < 1000000 || revenue >= 10000000)) return;
+            if (currentFilter === 'large' && revenue < 10000000) return;
             
-            debugLog(`Processing org in ${city}: ${org.Name} - ${org["Total revenues"]}`);
-            
-            if (!cityGroups[city]) {
-              cityGroups[city] = {
-                city: city,
-                count: 0,
-                totalRevenue: 0,
-                organizations: []
-              };
+            const orgItem = document.createElement("div");
+            orgItem.className = "org-item";
+            orgItem.innerHTML = `
+              <div class="org-name">${org.Name}</div>
+              <div>${org["Total revenues"]}</div>
+              <div>${org["IRS 501(c) type"]}</div>
+            `;
+            orgsListElement.appendChild(orgItem);
+          });
+        }
+        
+        // Process organizations data
+        function processOrganizations() {
+          // Group organizations by city
+          cityGroups = {};
+          let totalRevenue = 0;
+          let caOrgCount = 0;
+          
+          debugLog(`Processing ${organizations.length} organizations...`);
+          
+          organizations.forEach(org => {
+            // Check if organization has valid data
+            if (!org || !org.City || !org.State) {
+              debugLog(`Skipping invalid organization: ${JSON.stringify(org)}`);
+              return;
             }
             
-            cityGroups[city].count++;
-            cityGroups[city].totalRevenue += revenue;
-            cityGroups[city].organizations.push(org);
-          }
-        });
-        
-        // Update statistics
-        document.getElementById("orgCount").textContent = caOrgCount;
-        document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
-        
-        debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
-        debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
-        
-        // Create markers for each city
-        Object.keys(cityGroups).forEach(city => {
-          const cityInfo = cityGroups[city];
-          
-          // Check if we have coordinates for this city
-          if (cityCoordinates[city]) {
-            const [longitude, latitude] = cityCoordinates[city];
-            
-            // Create point
-            const point = new Point({
-              longitude: longitude,
-              latitude: latitude
-            });
-            
-            // Create marker symbol
-            const markerSymbol = {
-              type: "simple-marker",
-              size: getMarkerSize(cityInfo.totalRevenue),
-              color: getMarkerColor(cityInfo.totalRevenue),
-              outline: {
-                color: [255, 255, 255],
-                width: 2
+            if (org.State === 'CA') {
+              const city = org.City.trim();
+              const revenue = parseRevenue(org["Total revenues"]);
+              
+              caOrgCount++;
+              totalRevenue += revenue;
+              
+              debugLog(`Processing org in ${city}: ${org.Name} - ${org["Total revenues"]}`);
+              
+              if (!cityGroups[city]) {
+                cityGroups[city] = {
+                  city: city,
+                  count: 0,
+                  totalRevenue: 0,
+                  organizations: []
+                };
               }
-            };
-            
-            // Create graphic
-            const graphic = new Graphic({
-              geometry: point,
-              symbol: markerSymbol,
-              attributes: {
-                city: city,
-                count: cityInfo.count,
-                organizations: cityInfo.organizations,
-                totalRevenue: cityInfo.totalRevenue,
-                totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
-              },
-              popupTemplate: popupTemplate
-            });
-            
-            // Add to graphics layer
-            graphicsLayer.add(graphic);
-          } else {
-            debugLog(`No coordinates found for city: ${city}`);
-          }
-        });
-        
-        // Update info panel
-        updateInfoPanel();
-      }
-      
-      // Function to load and process CSV data
-      function loadData() {
-        debugLog("Attempting to load CSV data...");
-        
-        // Try to load the CSV file with the correct filename
-        esriRequest("cleandata_farmworker-organizations.csv", {
-          responseType: "text"
-        }).then(function(response) {
-          debugLog("CSV file loaded successfully!");
-          
-          // Use Papa Parse for better CSV parsing
-          Papa.parse(response.data, {
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-              organizations = results.data;
-              debugLog(`Parsed ${organizations.length} organizations from CSV`);
-              processOrganizations();
-            },
-            error: function(error) {
-              debugLog(`Error parsing CSV: ${error}`);
-              debugLog("Falling back to mock data");
-              organizations = mockOrganizations;
-              processOrganizations();
+              
+              cityGroups[city].count++;
+              cityGroups[city].totalRevenue += revenue;
+              cityGroups[city].organizations.push(org);
             }
           });
-        }).catch(function(error) {
-          debugLog(`Error loading CSV: ${error}`);
           
-          // Try alternate path
-          debugLog("Trying alternate path ./cleandata_farmworker-organizations.csv");
-          esriRequest("./cleandata_farmworker-organizations.csv", {
-            responseType: "text"
-          }).then(function(response) {
-            debugLog("CSV file loaded from alternate path!");
+          // Update statistics
+          document.getElementById("orgCount").textContent = caOrgCount;
+          document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
+          
+          debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
+          debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
+          
+          // Create markers for each city
+          Object.keys(cityGroups).forEach(city => {
+            const cityInfo = cityGroups[city];
             
-            Papa.parse(response.data, {
-              header: true,
-              skipEmptyLines: true,
-              complete: function(results) {
-                organizations = results.data;
-                debugLog(`Parsed ${organizations.length} organizations from CSV`);
-                processOrganizations();
-              },
-              error: function(error) {
-                debugLog(`Error parsing CSV: ${error}`);
-                organizations = mockOrganizations;
-                processOrganizations();
-              }
-            });
-          }).catch(function(error) {
-            debugLog(`Error loading CSV from alternate path: ${error}`);
+            // Check if we have coordinates for this city
+            if (cityCoordinates[city]) {
+              const [longitude, latitude] = cityCoordinates[city];
+              
+              // Create point
+              const point = new Point({
+                longitude: longitude,
+                latitude: latitude
+              });
+              
+              // Create marker symbol
+              const markerSymbol = {
+                type: "simple-marker",
+                size: getMarkerSize(cityInfo.totalRevenue),
+                color: getMarkerColor(cityInfo.totalRevenue),
+                outline: {
+                  color: [255, 255, 255],
+                  width: 2
+                }
+              };
+              
+              // Create graphic
+              const graphic = new Graphic({
+                geometry: point,
+                symbol: markerSymbol,
+                attributes: {
+                  city: city,
+                  count: cityInfo.count,
+                  organizations: cityInfo.organizations,
+                  totalRevenue: cityInfo.totalRevenue,
+                  totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
+                },
+                popupTemplate: popupTemplate
+              });
+              
+              // Add to graphics layer
+              graphicsLayer.add(graphic);
+            } else {
+              debugLog(`No coordinates found for city: ${city}`);
+            }
+          });
+          
+          // Update info panel
+          updateInfoPanel();
+        }
+        
+        // Function to load and process CSV data
+        function loadData() {
+          debugLog("Attempting to load CSV data...");
+          
+          // Try all possible filenames
+          const filesToTry = [
+            "cleandata_farmworker-organizations.csv",
+            "./cleandata_farmworker-organizations.csv",
+            "cleandata_farmworkerorganizations.csv",
+            "./cleandata_farmworkerorganizations.csv"
+          ];
+          
+          let fileIndex = 0;
+          
+          function tryNextFile() {
+            if (fileIndex >= filesToTry.length) {
+              debugLog("All file attempts failed. Using mock data.");
+              organizations = mockOrganizations;
+              processOrganizations();
+              return;
+            }
             
-            // Try one more fallback without the hyphen
-            debugLog("Trying without hyphen: cleandata_farmworkerorganizations.csv");
-            esriRequest("cleandata_farmworkerorganizations.csv", {
+            const filename = filesToTry[fileIndex];
+            debugLog(`Trying to load: ${filename}`);
+            
+            esriRequest(filename, {
               responseType: "text"
             }).then(function(response) {
-              debugLog("CSV file loaded without hyphen!");
+              debugLog(`CSV file loaded successfully from: ${filename}`);
               
+              // Use Papa Parse for better CSV parsing
               Papa.parse(response.data, {
                 header: true,
                 skipEmptyLines: true,
@@ -689,85 +663,89 @@
                 },
                 error: function(error) {
                   debugLog(`Error parsing CSV: ${error}`);
-                  organizations = mockOrganizations;
-                  processOrganizations();
+                  fileIndex++;
+                  tryNextFile();
                 }
               });
             }).catch(function(error) {
-              debugLog(`All CSV loading attempts failed: ${error}`);
-              debugLog("Falling back to mock data");
-              organizations = mockOrganizations;
-              processOrganizations();
+              debugLog(`Error loading ${filename}: ${error}`);
+              fileIndex++;
+              tryNextFile();
             });
-          });
-        });
-      }
-      
-      // Set up click handler for graphics
-      view.on("click", function(event) {
-        view.hitTest(event).then(function(response) {
-          const graphic = response.results.find(result => {
-            return result.graphic.layer === graphicsLayer;
-          });
-          
-          if (graphic) {
-            const city = graphic.graphic.attributes.city;
-            selectedCity = city;
-            updateInfoPanel(city);
           }
+          
+          tryNextFile();
+        }
+        
+        // Set up click handler for graphics
+        view.on("click", function(event) {
+          view.hitTest(event).then(function(response) {
+            const graphic = response.results.find(result => {
+              return result.graphic.layer === graphicsLayer;
+            });
+            
+            if (graphic) {
+              const city = graphic.graphic.attributes.city;
+              selectedCity = city;
+              updateInfoPanel(city);
+            }
+          });
         });
-      });
-      
-      // Handle filter buttons
-      document.getElementById("filterAll").addEventListener("click", function() {
-        currentFilter = 'all';
-        setActiveFilterButton(this);
-        filterGraphics(0);
-        updateInfoPanel(selectedCity);
-      });
-      
-      document.getElementById("filterLarge").addEventListener("click", function() {
-        currentFilter = 'large';
-        setActiveFilterButton(this);
-        filterGraphics(10000000);
-        updateInfoPanel(selectedCity);
-      });
-      
-      document.getElementById("filterMed").addEventListener("click", function() {
-        currentFilter = 'med';
-        setActiveFilterButton(this);
-        filterGraphics(1000000, 10000000);
-        updateInfoPanel(selectedCity);
-      });
-      
-      document.getElementById("filterSmall").addEventListener("click", function() {
-        currentFilter = 'small';
-        setActiveFilterButton(this);
-        filterGraphics(0, 1000000);
-        updateInfoPanel(selectedCity);
-      });
-      
-      // Helper function to set active filter button
-      function setActiveFilterButton(button) {
-        const buttons = document.querySelectorAll(".filter-btn");
-        buttons.forEach(btn => {
-          btn.classList.remove("active");
+        
+        // Handle filter buttons
+        document.getElementById("filterAll").addEventListener("click", function() {
+          currentFilter = 'all';
+          setActiveFilterButton(this);
+          filterGraphics(0);
+          updateInfoPanel(selectedCity);
         });
-        button.classList.add("active");
+        
+        document.getElementById("filterLarge").addEventListener("click", function() {
+          currentFilter = 'large';
+          setActiveFilterButton(this);
+          filterGraphics(10000000);
+          updateInfoPanel(selectedCity);
+        });
+        
+        document.getElementById("filterMed").addEventListener("click", function() {
+          currentFilter = 'med';
+          setActiveFilterButton(this);
+          filterGraphics(1000000, 10000000);
+          updateInfoPanel(selectedCity);
+        });
+        
+        document.getElementById("filterSmall").addEventListener("click", function() {
+          currentFilter = 'small';
+          setActiveFilterButton(this);
+          filterGraphics(0, 1000000);
+          updateInfoPanel(selectedCity);
+        });
+        
+        // Helper function to set active filter button
+        function setActiveFilterButton(button) {
+          const buttons = document.querySelectorAll(".filter-btn");
+          buttons.forEach(btn => {
+            btn.classList.remove("active");
+          });
+          button.classList.add("active");
+        }
+        
+        // Reset view button
+        document.getElementById("resetViewBtn").addEventListener("click", function() {
+          view.goTo(caExtent);
+          selectedCity = null;
+          updateInfoPanel();
+        });
+        
+        // Initialize the application when view is ready
+        view.when(function() {
+          debugLog("Map view initialized, loading data...");
+          loadData();
+        });
+      } catch (error) {
+        debugLog(`Error initializing map: ${error.message}`);
+        console.error(error);
       }
-      
-      // Reset view button
-      document.getElementById("resetViewBtn").addEventListener("click", function() {
-        view.goTo(caExtent);
-        selectedCity = null;
-        updateInfoPanel();
-      });
-      
-      // Initialize the application when view is ready
-      view.when(function() {
-        debugLog("Map view initialized, loading data...");
-        loadData();
-      });
     });
   </script>
 </body>
