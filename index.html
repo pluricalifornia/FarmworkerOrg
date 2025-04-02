@@ -242,6 +242,9 @@
       logItem.textContent = message;
       debugContent.appendChild(logItem);
       console.log(message);
+      
+      // Auto-scroll to bottom of debug panel
+      debugContent.scrollTop = debugContent.scrollHeight;
     }
     
     // City coordinates lookup
@@ -263,7 +266,8 @@
       "Coachella": [-116.1733, 33.6803],
       "Chico": [-121.8375, 39.7285],
       "Indio": [-116.2023, 33.7206],
-      "El Centro": [-115.5310, 32.7920]
+      "El Centro": [-115.5310, 32.7920],
+      "Davis": [-121.7405, 38.5449]
     };
     
     // Load geocode cache from localStorage
@@ -278,7 +282,7 @@
       debugLog("Error loading cached coordinates: " + e.message);
     }
     
-    // Fallback data if CSV load fails
+    // Expanded mock data for testing
     const mockOrganizations = [
       {
         "Name": "California Rural Legal Assistance (CRLA)",
@@ -319,6 +323,126 @@
         "City": "Sacramento",
         "State": "CA",
         "Total revenues": "$13,876,543"
+      },
+      {
+        "Name": "United Farm Workers (UFW)",
+        "EIN": "52-1360542",
+        "IRS 501(c) type": "501(c)(5)",
+        "City": "Keene",
+        "State": "CA",
+        "Total revenues": "$12,450,000"
+      },
+      {
+        "Name": "Farmworker Justice",
+        "EIN": "52-1196708",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Los Angeles",
+        "State": "CA",
+        "Total revenues": "$3,250,000"
+      },
+      {
+        "Name": "Lideres Campesinas",
+        "EIN": "95-4454748",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Oxnard",
+        "State": "CA",
+        "Total revenues": "$780,450"
+      },
+      {
+        "Name": "Mixteco/Indígena Community Organizing Project",
+        "EIN": "27-0841562",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Oxnard",
+        "State": "CA",
+        "Total revenues": "$2,500,000"
+      },
+      {
+        "Name": "Central Valley Farmworker Foundation",
+        "EIN": "47-3942156",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Delano",
+        "State": "CA",
+        "Total revenues": "$950,000"
+      },
+      {
+        "Name": "Farmworker Institute for Education & Leadership Development",
+        "EIN": "77-0471883",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Bakersfield",
+        "State": "CA",
+        "Total revenues": "$1,250,000"
+      },
+      {
+        "Name": "California Farmworker Foundation",
+        "EIN": "81-4424062",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Delano",
+        "State": "CA",
+        "Total revenues": "$1,870,000"
+      },
+      {
+        "Name": "Agricultural Workers Health Centers",
+        "EIN": "95-3820167",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Fresno",
+        "State": "CA",
+        "Total revenues": "$8,500,000"
+      },
+      {
+        "Name": "Dolores Huerta Foundation",
+        "EIN": "91-2146597",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Bakersfield", 
+        "State": "CA",
+        "Total revenues": "$5,700,000"
+      },
+      {
+        "Name": "Centro Binacional para el Desarrollo Indígena Oaxaqueño",
+        "EIN": "20-2578892",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Fresno",
+        "State": "CA",
+        "Total revenues": "$1,320,000"
+      },
+      {
+        "Name": "California Institute for Rural Studies",
+        "EIN": "94-2687658",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Davis",
+        "State": "CA",
+        "Total revenues": "$950,000"
+      },
+      {
+        "Name": "La Cooperativa Campesina de California",
+        "EIN": "68-0410095",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Sacramento",
+        "State": "CA",
+        "Total revenues": "$15,720,000"
+      },
+      {
+        "Name": "Líderes Campesinas en California",
+        "EIN": "95-4454748",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Oxnard",
+        "State": "CA",
+        "Total revenues": "$890,000"
+      },
+      {
+        "Name": "Farmworker Health Services",
+        "EIN": "47-2145678",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Coachella",
+        "State": "CA",
+        "Total revenues": "$3,500,000"
+      },
+      {
+        "Name": "Proteus Inc.",
+        "EIN": "94-2276071",
+        "IRS 501(c) type": "501(c)(3)",
+        "City": "Visalia",
+        "State": "CA",
+        "Total revenues": "$22,500,000"
       }
     ];
     
@@ -329,6 +453,111 @@
     let cityGroups = {};
     let currentFilter = 'all';
     let selectedCity = null;
+    
+    // Function to inspect CSV headers
+    function inspectCsvHeaders(csvData) {
+      try {
+        // Parse just the first row to get headers
+        const headerResult = Papa.parse(csvData, {
+          preview: 1, // Read only first row
+          header: false
+        });
+        
+        if (headerResult.data && headerResult.data[0]) {
+          debugLog(`CSV Headers: ${headerResult.data[0].join(', ')}`);
+          
+          // Check for common header variations that might be issues
+          const headers = headerResult.data[0];
+          const expectedHeaders = ["Name", "City", "State", "Total revenues"];
+          
+          const foundHeaders = expectedHeaders.map(header => {
+            const exactMatch = headers.includes(header);
+            if (exactMatch) return `"${header}" (✓)`;
+            
+            // Look for close matches that might be causing issues
+            const closeMatches = headers.filter(h => 
+              h.toLowerCase().includes(header.toLowerCase()) || 
+              header.toLowerCase().includes(h.toLowerCase())
+            );
+            
+            if (closeMatches.length > 0) {
+              return `"${header}" (close matches: ${closeMatches.join(', ')})`;
+            }
+            
+            return `"${header}" (❌)`;
+          });
+          
+          debugLog(`Expected headers status: ${foundHeaders.join('; ')}`);
+        } else {
+          debugLog("Failed to parse CSV headers");
+        }
+      } catch (e) {
+        debugLog(`Error inspecting CSV headers: ${e.message}`);
+      }
+    }
+    
+    // Function to validate and fix organization data
+    function validateAndFixOrganizationData(organizations) {
+      if (!organizations || organizations.length === 0) {
+        debugLog("No organizations data to validate");
+        return organizations;
+      }
+      
+      // Get all column names from the first row
+      const sampleOrg = organizations[0];
+      const columnNames = Object.keys(sampleOrg);
+      debugLog(`CSV column names: ${columnNames.join(', ')}`);
+      
+      // Check for alternate column names for required fields
+      const columnMappings = {
+        "Name": ["name", "organization", "organization name", "org name", "organization_name"],
+        "City": ["city", "location", "town", "municipality"],
+        "State": ["state", "province", "st", "region"],
+        "Total revenues": ["total revenues", "revenues", "total_revenues", "revenue", "funding", "total funding"]
+      };
+      
+      // Check if we need to rename columns
+      let needsRenaming = false;
+      const renamedFields = {};
+      
+      Object.keys(columnMappings).forEach(standardName => {
+        if (!columnNames.includes(standardName)) {
+          // Standard name not found, look for alternatives
+          const alternates = columnMappings[standardName];
+          const foundAlternate = alternates.find(alt => 
+            columnNames.find(col => col.toLowerCase() === alt.toLowerCase())
+          );
+          
+          if (foundAlternate) {
+            const exactColumn = columnNames.find(col => 
+              col.toLowerCase() === foundAlternate.toLowerCase()
+            );
+            renamedFields[exactColumn] = standardName;
+            needsRenaming = true;
+            debugLog(`Will rename column "${exactColumn}" to "${standardName}"`);
+          } else {
+            debugLog(`WARNING: Could not find any column for "${standardName}"`);
+          }
+        }
+      });
+      
+      // If renaming is needed, create a new array with fixed column names
+      if (needsRenaming) {
+        debugLog("Renaming columns to standard format");
+        return organizations.map(org => {
+          const newOrg = {...org};
+          
+          Object.keys(renamedFields).forEach(oldName => {
+            const newName = renamedFields[oldName];
+            newOrg[newName] = org[oldName];
+          });
+          
+          return newOrg;
+        });
+      }
+      
+      return organizations;
+    }
     
     // Function to parse revenue values
     function parseRevenue(revenueStr) {
@@ -596,123 +825,164 @@
           });
         }
         
-        // Modified processOrganizations function using geocoding
+        // Enhanced processOrganizations function with improved debugging
         async function processOrganizations() {
-          // Group organizations by city
-          cityGroups = {};
-          let totalRevenue = 0;
-          let caOrgCount = 0;
-          
-          debugLog(`Processing ${organizations.length} organizations...`);
-          
-          organizations.forEach(org => {
-            // Check if organization has valid data
-            if (!org || !org.City || !org.State) {
-              debugLog(`Skipping invalid organization: ${JSON.stringify(org)}`);
+          try {
+            // Group organizations by city
+            cityGroups = {};
+            let totalRevenue = 0;
+            let caOrgCount = 0;
+            
+            debugLog(`Processing ${organizations.length} organizations...`);
+            
+            // Check if organizations is valid
+            if (!Array.isArray(organizations)) {
+              debugLog(`ERROR: organizations is not an array. Type: ${typeof organizations}`);
+              if (typeof organizations === 'object') {
+                debugLog(`organizations keys: ${Object.keys(organizations).join(', ')}`);
+              }
               return;
             }
             
-            if (org.State === 'CA') {
-              const city = org.City.trim();
-              const revenue = parseRevenue(org["Total revenues"]);
-              
-              caOrgCount++;
-              totalRevenue += revenue;
-              
-              debugLog(`Processing org in ${city}: ${org.Name} - ${org["Total revenues"]}`);
-              
-              if (!cityGroups[city]) {
-                cityGroups[city] = {
-                  city: city,
-                  count: 0,
-                  totalRevenue: 0,
-                  organizations: []
-                };
+            organizations.forEach((org, index) => {
+              // Check if organization has valid data
+              if (!org || !org.City || !org.State) {
+                debugLog(`Skipping invalid organization at index ${index}: ${JSON.stringify(org)}`);
+                return;
               }
               
-              cityGroups[city].count++;
-              cityGroups[city].totalRevenue += revenue;
-              cityGroups[city].organizations.push(org);
-            }
-          });
-          
-          // Update statistics
-          document.getElementById("orgCount").textContent = caOrgCount;
-          document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
-          
-          debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
-          debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
-          
-          // Create markers for each city (modified to use geocoding)
-          const cities = Object.keys(cityGroups);
-          
-          // Process cities with a delay to avoid rate limiting
-          for (let i = 0; i < cities.length; i++) {
-            const city = cities[i];
-            const cityInfo = cityGroups[city];
-            
-            // Get coordinates (from cache or geocoding)
-            let coordinates;
-            
-            if (geocodeCache[city]) {
-              coordinates = geocodeCache[city];
-            } else {
-              coordinates = await geocodeCity(city);
-              // Add small delay between geocoding requests
-              if (i < cities.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-              }
-            }
-            
-            if (coordinates) {
-              const [longitude, latitude] = coordinates;
-              
-              // Create point
-              const point = new Point({
-                longitude: longitude,
-                latitude: latitude
-              });
-              
-              // Create marker symbol
-              const markerSymbol = {
-                type: "simple-marker",
-                size: getMarkerSize(cityInfo.totalRevenue),
-                color: getMarkerColor(cityInfo.totalRevenue),
-                outline: {
-                  color: [255, 255, 255],
-                  width: 2
+              if (org.State === 'CA') {
+                const city = org.City.trim();
+                const revenue = parseRevenue(org["Total revenues"]);
+                
+                if (isNaN(revenue)) {
+                  debugLog(`Warning: Invalid revenue format for ${org.Name}: "${org["Total revenues"]}"`);
                 }
-              };
+                
+                caOrgCount++;
+                totalRevenue += revenue;
+                
+                if (index < 5) {  // Only log a few to avoid flooding the debug panel
+                  debugLog(`Processing org in ${city}: ${org.Name} - ${org["Total revenues"]}`);
+                }
+                
+                if (!cityGroups[city]) {
+                  cityGroups[city] = {
+                    city: city,
+                    count: 0,
+                    totalRevenue: 0,
+                    organizations: []
+                  };
+                }
+                
+                cityGroups[city].count++;
+                cityGroups[city].totalRevenue += revenue;
+                cityGroups[city].organizations.push(org);
+              }
+            });
+            
+            // Update statistics
+            document.getElementById("orgCount").textContent = caOrgCount;
+            document.getElementById("fundingTotal").textContent = formatRevenue(totalRevenue);
+            
+            debugLog(`Found ${caOrgCount} organizations in California with total revenue of ${formatRevenue(totalRevenue)}`);
+            debugLog(`Cities found: ${Object.keys(cityGroups).join(", ")}`);
+            debugLog(`Number of cities: ${Object.keys(cityGroups).length}`);
+            
+            // Create markers for each city
+            const cities = Object.keys(cityGroups);
+            
+            debugLog(`Starting to create markers for ${cities.length} cities...`);
+            
+            // Process cities with a delay to avoid rate limiting
+            let markersCreated = 0;
+            
+            for (let i = 0; i < cities.length; i++) {
+              const city = cities[i];
+              const cityInfo = cityGroups[city];
               
-              // Create graphic
-              const graphic = new Graphic({
-                geometry: point,
-                symbol: markerSymbol,
-                attributes: {
-                  city: city,
-                  count: cityInfo.count,
-                  organizations: cityInfo.organizations,
-                  totalRevenue: cityInfo.totalRevenue,
-                  totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
-                },
-                popupTemplate: popupTemplate
-              });
+              debugLog(`Processing city ${i+1}/${cities.length}: ${city} with ${cityInfo.count} organizations and ${formatRevenue(cityInfo.totalRevenue)} revenue`);
               
-              // Add to graphics layer
-              graphicsLayer.add(graphic);
-            } else {
-              debugLog(`Could not get coordinates for city: ${city}`);
+              // Get coordinates (from cache or geocoding)
+              let coordinates;
+              
+              if (geocodeCache[city]) {
+                coordinates = geocodeCache[city];
+                debugLog(`Using cached coordinates for ${city}: [${coordinates}]`);
+              } else {
+                debugLog(`No cached coordinates for ${city}, attempting geocoding...`);
+                coordinates = await geocodeCity(city);
+                // Add small delay between geocoding requests
+                if (i < cities.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+              }
+              
+              if (coordinates) {
+                const [longitude, latitude] = coordinates;
+                
+                // Create point
+                const point = new Point({
+                  longitude: longitude,
+                  latitude: latitude
+                });
+                
+                // Create marker symbol
+                const markerSymbol = {
+                  type: "simple-marker",
+                  size: getMarkerSize(cityInfo.totalRevenue),
+                  color: getMarkerColor(cityInfo.totalRevenue),
+                  outline: {
+                    color: [255, 255, 255],
+                    width: 2
+                  }
+                };
+                
+                try {
+                  // Create graphic
+                  const graphic = new Graphic({
+                    geometry: point,
+                    symbol: markerSymbol,
+                    attributes: {
+                      city: city,
+                      count: cityInfo.count,
+                      organizations: cityInfo.organizations,
+                      totalRevenue: cityInfo.totalRevenue,
+                      totalRevenueDisplay: formatRevenue(cityInfo.totalRevenue)
+                    },
+                    popupTemplate: popupTemplate
+                  });
+                  
+                  // Add to graphics layer
+                  graphicsLayer.add(graphic);
+                  markersCreated++;
+                  
+                  if (i < 5 || i === cities.length-1) {
+                    debugLog(`Added marker for ${city} with ${cityInfo.count} orgs, revenue: ${formatRevenue(cityInfo.totalRevenue)}`);
+                  }
+                } catch (error) {
+                  debugLog(`Error creating graphic for ${city}: ${error.message}`);
+                }
+              } else {
+                debugLog(`Could not get coordinates for city: ${city}`);
+              }
             }
+            
+            debugLog(`Created ${markersCreated} markers out of ${cities.length} cities`);
+            debugLog(`Graphics layer has ${graphicsLayer.graphics.length} graphics`);
+            
+            // Save the complete geocode cache
+            saveGeocodeCache();
+            
+            // Update info panel
+            updateInfoPanel();
+          } catch (error) {
+            debugLog(`Error in processOrganizations: ${error.message}`);
+            console.error(error);
           }
-          
-          // Save the complete geocode cache
-          saveGeocodeCache();
-          
-          // Update info panel
-          updateInfoPanel();
         }
         
-      // Function to load and process CSV data - updated for async
+        // Enhanced loadData function with improved debugging
         function loadData() {
           debugLog("Attempting to load CSV data...");
           
@@ -730,6 +1000,7 @@
             if (fileIndex >= filesToTry.length) {
               debugLog("All file attempts failed. Using mock data.");
               organizations = mockOrganizations;
+              debugLog("Mock data loaded: " + JSON.stringify(mockOrganizations[0]));
               processOrganizations().catch(error => {
                 debugLog(`Error processing organizations: ${error.message}`);
               });
@@ -743,6 +1014,11 @@
               responseType: "text"
             }).then(function(response) {
               debugLog(`CSV file loaded successfully from: ${filename}`);
+              // Log a sample of the CSV content
+              debugLog(`CSV sample (first 100 chars): ${response.data.substring(0, 100)}...`);
+              
+              // Check CSV headers
+              inspectCsvHeaders(response.data);
               
               // Use Papa Parse for better CSV parsing
               Papa.parse(response.data, {
@@ -751,6 +1027,26 @@
                 complete: function(results) {
                   organizations = results.data;
                   debugLog(`Parsed ${organizations.length} organizations from CSV`);
+                  
+                  // Log a sample organization to verify structure
+                  if (organizations.length > 0) {
+                    debugLog(`Sample organization: ${JSON.stringify(organizations[0])}`);
+                  }
+                  
+                  // Check for required fields
+                  const requiredFields = ["Name", "City", "State", "Total revenues"];
+                  if (organizations.length > 0) {
+                    const missingFields = requiredFields.filter(field => 
+                      !organizations[0] || typeof organizations[0][field] === 'undefined'
+                    );
+                    
+                    if (missingFields.length > 0) {
+                      debugLog(`WARNING: Missing required fields in CSV: ${missingFields.join(', ')}`);
+                      // Try to fix column names
+                      organizations = validateAndFixOrganizationData(organizations);
+                    }
+                  }
+                  
                   processOrganizations().catch(error => {
                     debugLog(`Error processing organizations: ${error.message}`);
                   });
@@ -831,9 +1127,51 @@
           updateInfoPanel();
         });
         
+        // Add a manual test marker to verify graphics layer is working
+        function addTestMarker() {
+          try {
+            debugLog("Adding test marker to verify graphics layer...");
+            const testPoint = new Point({
+              longitude: -119.0187, 
+              latitude: 35.3733
+            });
+            
+            const testGraphic = new Graphic({
+              geometry: testPoint,
+              symbol: {
+                type: "simple-marker",
+                size: 20,
+                color: [255, 0, 0, 0.8],
+                outline: {
+                  color: [255, 255, 255],
+                  width: 2
+                }
+              },
+              attributes: {
+                city: "TEST MARKER",
+                count: 1,
+                totalRevenue: 1000000,
+                totalRevenueDisplay: "$1.0M"
+              },
+              popupTemplate: popupTemplate
+            });
+            
+            graphicsLayer.add(testGraphic);
+            debugLog("Test marker added successfully");
+          } catch (error) {
+            debugLog(`Error adding test marker: ${error.message}`);
+          }
+        }
+        
         // Initialize the application when view is ready
         view.when(function() {
           debugLog("Map view initialized, loading data...");
+          
+          // First add a test marker to verify the graphics layer is working
+          // Uncomment this line for troubleshooting if needed
+          // addTestMarker();
+          
+          // Then load the real data
           loadData();
         });
       } catch (error) {
@@ -844,3 +1182,4 @@
   </script>
 </body>
 </html>
+              
