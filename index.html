@@ -452,6 +452,7 @@
     let cityGroups = {};
     let currentFilter = 'all';
     let selectedCity = null;
+    let geocodeCache = {}; // Added geocodeCache as a global variable
     
     // Function to reset the geocode cache
     function resetGeocodeCache() {
@@ -677,8 +678,8 @@
       debugLog("ArcGIS modules loaded successfully");
       
       try {
-        // Create geocode cache by combining hardcoded and stored coordinates
-        const geocodeCache = {...cityCoordinates, ...storedGeoCache};
+        // Initialize the geocodeCache with combined data - using assignment instead of re-declaring
+        geocodeCache = {...cityCoordinates, ...storedGeoCache};
         
         // Updated geocodeCity function using fetch with Nominatim API
         async function geocodeCity(cityName, state = "CA") {
@@ -776,7 +777,6 @@
         // Add it to the map and ensure it's added successfully
         map.add(graphicsLayer);
         debugLog(`Added graphics layer to map: ${graphicsLayer.id}`);
-        
         // Create the map view
         view = new MapView({
           container: "viewDiv",
