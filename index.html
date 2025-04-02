@@ -375,15 +375,13 @@
       "esri/widgets/Home",
       "esri/geometry/Extent",
       "esri/request",
-      "esri/tasks/Locator" // Add Locator to the require
-    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest, Locator) => {
+      "esri/rest/locator" // Updated: Changed from "esri/tasks/Locator" to "esri/rest/locator"
+    ], (ArcGISMap, MapView, Graphic, GraphicsLayer, Point, BasemapToggle, Home, Extent, esriRequest, locator) => {
       debugLog("ArcGIS modules loaded successfully");
       
       try {
-        // Create a locator instance for geocoding
-        const locator = new Locator({
-          url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer"
-        });
+        // Define the geocoding service URL
+        const geocodingServiceUrl = "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer";
         
         // Create geocode cache by combining hardcoded and stored coordinates
         const geocodeCache = {...cityCoordinates, ...storedGeoCache};
@@ -398,7 +396,7 @@
           }
         }
         
-        // Function to geocode a city
+        // Function to geocode a city (updated to use locator module)
         async function geocodeCity(cityName, state = "CA") {
           // Check cache first
           if (geocodeCache[cityName]) {
@@ -409,17 +407,17 @@
           debugLog(`Geocoding city: ${cityName}, ${state}`);
           
           try {
-            const results = await locator.addressToLocations({
-              address: {
-                "city": cityName,
-                "region": state,
-                "countryCode": "USA"
-              },
+            // Updated params format for the new locator module
+            const params = {
+              address: `${cityName}, ${state}`,
               outFields: ["*"],
+              countryCode: "USA",
               maxLocations: 1
-            });
+            };
             
-            if (results.length > 0) {
+            const results = await locator.addressToLocations(geocodingServiceUrl, params);
+            
+            if (results && results.length > 0) {
               const coords = [results[0].location.longitude, results[0].location.latitude];
               debugLog(`Successfully geocoded ${cityName}: [${coords}]`);
               
@@ -714,7 +712,7 @@
           updateInfoPanel();
         }
         
-        // Function to load and process CSV data - updated for async
+      // Function to load and process CSV data - updated for async
         function loadData() {
           debugLog("Attempting to load CSV data...");
           
